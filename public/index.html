@@ -59,13 +59,16 @@
 <script src="scheduling-core.js"></script>
 <style>
   :root{
-    --bg:#ECF3E3; --bg-paper:#EFEEE7; --surface:#FFFFFF; --ink:#1F2A1D; --muted:#7C8B72;
-    --border:#DCE4D3; --grid-line:#C9D4BC;
-    --primary:#5AA94E; --primary-soft:#E3F0DF; --primary-deep:#3D7A33;
-    --amber:#DDAC4C; --amber-soft:#FBF0DA; --amber-deep:#9C7527;
-    --brown:#785D42; --brown-soft:#F1E6DA;
-    --off:#DCE0D2; --danger:#C1573A; --danger-soft:#FBE3DA;
-    --weekend-tint:#F5EFDD;
+    /* 米白底 + 寶石色:jade(主色/白班) topaz(小夜) amethyst(行政) ruby(警示) */
+    --bg:#FBFBFC; --bg-paper:#F3F3F1; --surface:#FFFFFF; --ink:#1B2430; --muted:#667085;
+    --border:#E3E5E8; --grid-line:#D5D8DD;
+    --primary:#1F7A6B; --primary-soft:#DDF0EB; --primary-deep:#14594D;
+    --amber:#C8932B; --amber-soft:#FBF1DB; --amber-deep:#8A5F12;
+    --brown:#6D4C9F; --brown-soft:#ECE6F5;
+    --off:#E6E8EB; --danger:#B4332E; --danger-soft:#FBE4E2;
+    --weekend-tint:#F4F1E8;
+    --mono:'Space Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --radius:4px;
   }
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans TC','PingFang TC','PingFang SC','Microsoft JhengHei','Heiti TC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;}
@@ -89,8 +92,7 @@
   .week-label{font-weight:700;font-size:14.5px;min-width:100px;text-align:center;}
   .auto-btn{border:none;border-radius:11px;background:var(--primary);color:#fff;padding:9px 16px;cursor:pointer;font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;}
   .auto-btn:hover{background:var(--primary-deep);}
-  #exportBtn:hover{background:#5c4630 !important;}
-  .role-tabs{display:flex;gap:8px;margin-bottom:0;}
+    .role-tabs{display:flex;gap:8px;margin-bottom:0;}
   .role-tab{padding:8px 16px;border-radius:999px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;font-size:13.5px;font-weight:700;color:var(--muted);display:flex;align-items:center;gap:7px;}
   .role-tab .dot{width:8px;height:8px;border-radius:50%;}
   .role-tab.active[data-role="nursing"]{background:var(--primary-soft);color:var(--primary-deep);border-color:var(--primary);}
@@ -164,7 +166,7 @@
   .legend span{display:inline-flex;align-items:center;gap:6px;font-weight:500;}
   .legend i{width:10px;height:10px;border-radius:3px;display:inline-block;}
   .empty-state{padding:30px 10px;text-align:center;color:var(--muted);font-size:13px;}
-  .brand-footer{height:14px;margin:32px -20px 0;background:linear-gradient(90deg,#8CC150 0%,#5AA94E 30%,#B6D37F 55%,#785D42 100%);opacity:.65;border-radius:0 0 4px 4px;}
+  .brand-footer{height:3px;margin:32px -20px 0;background:linear-gradient(90deg,var(--primary),var(--amber) 55%,var(--brown));opacity:.8;}
   .footer-note{text-align:center;color:var(--muted);font-size:11px;padding:10px 0 24px;letter-spacing:.04em;}
 
   #printHeader{display:none;}
@@ -219,6 +221,111 @@
   .rule-form select, .rule-form input[type=text]{border:1px solid var(--border);border-radius:7px;padding:6px 8px;font-size:12.5px;font-family:inherit;}
   .occ-check{display:flex;gap:6px;flex-wrap:wrap;}
   .occ-check label{background:#fff;border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11.5px;}
+
+  /* ================= UI/UX 優化層(參考 MK-monthly 班表頁的版面語言) =================
+     直角細線、kicker 標籤、人員 chip、固定姓名欄、缺人紅底、違規左線區塊、手機斷點。
+     刻意放在原樣式之後,以覆寫為主,不改動 JS 用到的 class / id。 */
+  body{-webkit-tap-highlight-color:transparent;}
+  .num,.week-label,.shift-cell,table.schedule thead th,tr.summary-row td.count-cell,.hc-count{font-family:var(--mono);font-variant-numeric:tabular-nums;}
+  .shift-cell{font-size:11px;}
+  table.schedule thead th{font-size:11px;font-weight:700;letter-spacing:0;}
+  table.schedule thead th.evt-note,table.schedule thead th.code-head{font-family:inherit;}
+
+  /* 焦點可見(鍵盤操作) */
+  button:focus-visible,select:focus-visible,input:focus-visible,.role-tab:focus-visible,.code-ref-chip:focus-visible,.hc-item:focus-visible{outline:2px solid var(--primary);outline-offset:2px;}
+  .shift-cell:focus-visible{outline:2px solid var(--primary);outline-offset:-2px;}
+  button{font-family:inherit;}
+
+  /* 頂部導覽與品牌區:低調、細線 */
+  .topnav{justify-content:flex-start;padding:12px 0 0;border-bottom:1px solid var(--border);gap:4px;}
+  .topnav button{border:none;border-bottom:2px solid transparent;border-radius:0;background:none;color:var(--muted);padding:10px 14px;min-height:44px;font-size:13px;}
+  .topnav button:hover{color:var(--ink);}
+  .topnav button.active{background:none;color:var(--ink);border-bottom-color:var(--primary);}
+  .topnav .nav-right{margin-left:auto;font-size:12px;font-weight:600;}
+  .brand-banner{padding:18px 0 12px;text-align:left;display:flex;align-items:center;gap:14px;}
+  .brand-banner img{height:36px;}
+  .brand-banner .sub{margin:0;color:var(--muted);letter-spacing:.14em;font-size:11px;font-weight:600;}
+
+  /* 控制列 */
+  .controlbar{border-radius:var(--radius);padding:12px 14px;gap:10px 16px;}
+  .role-tab{min-height:40px;padding:8px 16px;border-width:1px;}
+  .role-tab:hover{border-color:var(--ink);}
+  .control-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .week-nav button{width:40px;height:40px;border-radius:var(--radius);background:var(--surface);}
+  .week-label{font-size:14px;min-width:112px;}
+  .auto-btn{min-height:40px;padding:8px 14px;border-radius:var(--radius);background:var(--surface);color:var(--ink);border:1px solid var(--border);font-size:13px;font-weight:600;transition:background-color .15s,border-color .15s,color .15s;}
+  .auto-btn:hover{background:var(--bg-paper);border-color:var(--ink);}
+  .auto-btn.primary{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:700;}
+  .auto-btn.primary:hover{background:var(--primary-deep);border-color:var(--primary-deep);}
+  .auto-btn:disabled{opacity:.45;cursor:not-allowed;}
+
+  /* 面板:kicker 標題 + 細線 */
+  .panel{border-radius:var(--radius);padding:16px 18px;}
+  .panel h3{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--amber-deep);font-weight:700;margin-bottom:14px;}
+  .panel h3::before{display:none;}
+  .panel h3::after{content:'';flex:1;height:1px;background:var(--border);}
+  .threshold-row{border-radius:var(--radius);}
+  .threshold-row select,.threshold-row input[type=text],.threshold-row input[type=number]{min-height:34px;border-radius:var(--radius);}
+
+  /* 班表格 */
+  .grid-wrap{border-radius:var(--radius);max-height:calc(100dvh - 220px);overflow:auto;}
+  table.schedule thead th{top:0;z-index:4;}
+  table.schedule td.name-cell{border-right:1px solid var(--ink);}
+  .shift-cell{width:40px;height:34px;transition:background-color .12s;}
+  .shift-cell:hover{filter:none;box-shadow:inset 0 0 0 1.5px var(--ink);}
+  .shift-cell.night{color:#fff;}
+  tr.summary-row td.count-cell.low{background:var(--danger-soft) !important;color:var(--danger);}
+  .legend{margin-top:12px;}
+  .legend i{border-radius:2px;}
+  .code-ref-chip{border-radius:var(--radius);min-height:34px;}
+  .code-ref-chip:hover{transform:none;box-shadow:inset 0 0 0 1.5px var(--ink);}
+  .merged-chip{min-height:30px;}
+
+  /* 健檢報告:摘要列 + 嚴重度分組 + 左線區塊 */
+  .hc-summary{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+  .hc-stat{flex:1;min-width:130px;border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;background:var(--surface);}
+  .hc-stat .hc-count{display:block;font-size:24px;font-weight:700;line-height:1.2;}
+  .hc-stat .hc-label{font-size:11px;letter-spacing:.14em;color:var(--muted);}
+  .hc-stat.hard .hc-count{color:var(--danger);}
+  .hc-stat.soft .hc-count{color:var(--amber-deep);}
+  .hc-stat.ok .hc-count{color:var(--primary-deep);}
+  .hc-group-title{font-size:11px;font-weight:700;letter-spacing:.18em;color:var(--muted);margin:16px 0 8px;display:flex;align-items:center;gap:10px;}
+  .hc-group-title::after{content:'';flex:1;height:1px;background:var(--border);}
+  .hc-item{border-radius:0 var(--radius) var(--radius) 0;border:none;border-left:3px solid transparent;padding:10px 14px;margin-bottom:6px;transition:background-color .15s;}
+  .hc-item.hard{background:var(--danger-soft);border:none;border-left:3px solid var(--danger);}
+  .hc-item.soft{background:var(--amber-soft);border:none;border-left:3px solid var(--amber);}
+  .hc-item[data-jump]{cursor:pointer;}
+  .hc-item[data-jump]:hover{filter:brightness(.97);}
+  .hc-badge{border-radius:2px;font-size:10px;letter-spacing:.08em;}
+  .hc-meta{font-family:var(--mono);font-size:11.5px;color:var(--muted);}
+  .hc-item.hard .hc-badge{background:var(--danger);}
+  .hc-item.soft .hc-badge{background:var(--amber-deep);}
+  @keyframes cellPulse{0%,100%{box-shadow:inset 0 0 0 2px var(--danger);}50%{box-shadow:inset 0 0 0 4px var(--danger);}}
+  .shift-cell.flash{animation:cellPulse .6s ease-in-out 3;}
+  @media (prefers-reduced-motion: reduce){ .shift-cell.flash{animation:none;box-shadow:inset 0 0 0 3px var(--danger);} *{transition-duration:.01ms !important;} }
+
+  .toast{border-radius:var(--radius);}
+  .footer-note{font-size:11px;}
+
+  /* ===== 手機 / 小螢幕 ===== */
+  @media (max-width: 720px){
+    .app{padding:0 10px;}
+    .brand-banner{padding:12px 0 8px;}
+    .brand-banner .sub{font-size:10px;letter-spacing:.08em;}
+    .controlbar{padding:10px;}
+    .role-tabs{overflow-x:auto;width:100%;flex-wrap:nowrap;scrollbar-width:none;}
+    .role-tabs::-webkit-scrollbar{display:none;}
+    .role-tab{flex-shrink:0;}
+    .control-right{width:100%;gap:6px;}
+    .week-nav{width:100%;justify-content:space-between;}
+    .auto-btn{flex:1 1 calc(50% - 6px);justify-content:center;min-height:44px;}
+    .panel{padding:12px;}
+    .grid-wrap{max-height:calc(100dvh - 180px);}
+    .shift-cell{width:36px;height:40px;}
+    table.schedule td.name-cell{min-width:78px;padding:6px 8px;}
+    .hc-stat{min-width:100px;}
+    .threshold-row{padding:10px;}
+  }
 </style>
 </head>
 <body>
@@ -246,9 +353,9 @@
 <div class="app" id="mainApp" style="display:none;">
 
   <div class="topnav">
-    <button id="navCalendar" class="active">📅 班表檢視</button>
-    <button id="navAdmin" style="display:none;">⚙ 後台管理</button>
-    <button id="logoutBtn" style="border:1.5px solid var(--border);background:var(--surface);color:var(--muted);padding:8px 18px;border-radius:999px;font-size:13px;font-weight:700;cursor:pointer;">登出(<span id="currentUserLabel"></span>)</button>
+    <button id="navCalendar" class="active">班表檢視</button>
+    <button id="navAdmin" style="display:none;">後台管理</button>
+    <button id="logoutBtn" class="nav-right">登出(<span id="currentUserLabel"></span>)</button>
   </div>
 
   <div id="calendarView">
@@ -263,20 +370,20 @@
         <div class="role-tab" data-role="admin"><span class="dot"></span>行政人員</div>
         <div class="role-tab" data-role="care"><span class="dot"></span>照顧服務員</div>
       </div>
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <div class="control-right">
         <div class="week-nav">
-          <button id="prevMonth">‹</button>
+          <button id="prevMonth" aria-label="上個月">‹</button>
           <div class="week-label" id="monthLabel"></div>
-          <button id="nextMonth">›</button>
+          <button id="nextMonth" aria-label="下個月">›</button>
         </div>
-        <button class="auto-btn" id="autoScheduleBtn">⚡ 自動排班(草稿)</button>
-        <button class="auto-btn" id="healthCheckBtn" style="background:#B5651D;">🩺 排班健檢</button>
-        <button class="auto-btn" id="exportBtn" style="background:var(--brown);">⭳ 匯出 Excel</button>
-        <button class="auto-btn" id="importBtn" style="background:var(--amber-deep);">⭱ 匯入 Excel</button>
+        <button class="auto-btn primary" id="autoScheduleBtn">自動排班(草稿)</button>
+        <button class="auto-btn primary" id="healthCheckBtn">排班健檢</button>
+        <button class="auto-btn" id="exportBtn">匯出 Excel</button>
+        <button class="auto-btn" id="importBtn">匯入 Excel</button>
         <input type="file" id="importFileInput" accept=".xlsx,.xls" style="display:none;">
-        <button class="auto-btn" id="printBtn" style="background:#5C6B52;">🖨 列印班表(A4橫式)</button>
-        <button class="auto-btn" id="toggleMergedBtn" style="background:#2F7F86;">🔀 合併檢視</button>
-        <button class="auto-btn" id="toggleDraftBtn" style="background:#6A5ACD;">📑 對照版班表</button>
+        <button class="auto-btn" id="printBtn">列印(A4 橫式)</button>
+        <button class="auto-btn" id="toggleMergedBtn">合併檢視</button>
+        <button class="auto-btn" id="toggleDraftBtn">對照版班表</button>
       </div>
     </div>
 
@@ -320,7 +427,7 @@
     </div>
 
     <div class="panel" id="importPreviewPanel" style="display:none;">
-      <h3>⭱ 匯入預覽</h3>
+      <h3>匯入預覽</h3>
       <div id="importSummary" style="font-size:12.5px;color:var(--muted);margin-bottom:10px;"></div>
       <div id="importUnmatchedList" style="margin-bottom:12px;"></div>
       <div class="hint" style="margin-top:0;">匯入只會覆蓋 Excel 檔案裡有值的儲存格,Excel 裡是空白的地方不會動到系統原本的資料。姓名比對不到的人不會被匯入,請先確認左側清單。</div>
@@ -360,7 +467,7 @@
     </div>
 
     <div class="panel" id="healthCheckPanel" style="display:none;">
-      <h3>🩺 排班健檢報告</h3>
+      <h3>排班健檢報告</h3>
       <div id="healthCheckSummary" style="font-size:12.5px;color:var(--muted);margin-bottom:10px;"></div>
       <div id="healthCheckResults"></div>
     </div>
@@ -371,7 +478,7 @@
 
   <div id="adminView">
     <div class="brand-banner">
-      <div class="sub" style="font-size:16px;font-weight:700;color:var(--ink);letter-spacing:.02em;">⚙ 後台管理</div>
+      <div class="sub" style="font-size:16px;font-weight:700;color:var(--ink);letter-spacing:.02em;">後台管理</div>
     </div>
 
     <div id="adminContent">
@@ -1933,7 +2040,7 @@ async function renderGrid(){
   document.getElementById('gridTitle').textContent = ROLES.find(r=>r.key===currentRole).label + ' · 本月排班';
 
   if(items.length===0){
-    table.innerHTML = `<tr><td class="empty-state">請先到「⚙ 後台管理 → 人員資料庫」新增${ROLES.find(r=>r.key===currentRole).label}</td></tr>`;
+    table.innerHTML = `<tr><td class="empty-state">請先到「後台管理 → 人員資料庫」新增${ROLES.find(r=>r.key===currentRole).label}</td></tr>`;
     document.getElementById('legendArea').innerHTML = '';
     return;
   }
@@ -2091,7 +2198,7 @@ async function renderGrid(){
       <span><i style="background:#1F6B3A"></i>R 機構排定休假</span>
       <span><i style="background:var(--danger-soft)"></i>低於設定門檻</span>
       <span><i style="background:var(--danger)"></i>當天人力為0(不論門檻)</span>
-      <span style="color:var(--muted);">日期格上的色塊/文字是機構事件(可在「⚙後台管理」設定顏色與名稱)</span>
+      <span style="color:var(--muted);">日期格上的色塊/文字是機構事件(可在「後台管理」設定顏色與名稱)</span>
     `;
   } else {
     legend.innerHTML = `
@@ -2102,7 +2209,7 @@ async function renderGrid(){
       <span><i style="background:#F4F4EF;border:1px solid #ddd"></i>／ 空班</span>
       <span><i style="background:#4C86C6"></i>R/R1 預約休假</span>
       <span><i style="background:#1F6B3A"></i>R 機構排定休假</span>
-      <span style="color:var(--muted);">日期格上的色塊/文字是機構事件(可在「⚙後台管理」設定顏色與名稱)</span>
+      <span style="color:var(--muted);">日期格上的色塊/文字是機構事件(可在「後台管理」設定顏色與名稱)</span>
     `;
   }
 
@@ -2927,13 +3034,35 @@ document.getElementById('autoScheduleBtn').onclick = async ()=>{
     const extra = log.map(msg=>`
       <div class="hc-item hard">
         <span class="hc-badge">排不出來</span>
-        <div class="hc-body"><div class="hc-title">${msg}</div></div>
+        <div class="hc-body"><div class="hc-title">${escapeHtml(msg)}</div></div>
       </div>
     `).join('');
     panel.innerHTML = extra + panel.innerHTML;
   }
 };
 
+
+function escapeHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+// 健檢結果點擊/Enter:捲動到班表上對應的人與日期並閃爍提示
+function jumpToCell(spec){
+  const [sid, day] = spec.split('|');
+  const cell = document.querySelector(`#scheduleTable .shift-cell[data-staff="${CSS.escape(sid)}"][data-col="${parseInt(day,10)}"]`);
+  if(!cell){ showToast('找不到對應的格子(可能不在目前檢視的職務)'); return; }
+  cell.scrollIntoView({behavior:'smooth', block:'center', inline:'center'});
+  cell.classList.add('flash');
+  setTimeout(()=>cell.classList.remove('flash'), 2000);
+}
+document.addEventListener('click', e=>{
+  const it = e.target.closest && e.target.closest('.hc-item[data-jump]');
+  if(it) jumpToCell(it.dataset.jump);
+});
+document.addEventListener('keydown', e=>{
+  if(e.key!=='Enter' && e.key!==' ') return;
+  const it = e.target.closest && e.target.closest('.hc-item[data-jump]');
+  if(it){ e.preventDefault(); jumpToCell(it.dataset.jump); }
+});
 
 async function runHealthCheck(){
   const items = staff[currentRole];
@@ -2952,7 +3081,7 @@ async function runHealthCheck(){
     const cfg = getRuleConfig(key);
     if(cfg.enabled==='N') return;
     if(cfg.target==='fulltime' && staffObj && staffObj.partTime) return;
-    results.push({severity: cfg.type, ruleKey:key, title, staffName, dateLabel, suggestions: suggestionsFor(key)});
+    results.push({severity: cfg.type, ruleKey:key, title, staffName, dateLabel, staffId: staffObj ? staffObj.id : null, suggestions: suggestionsFor(key)});
   }
 
   const calRow = orgCalendar[monthCursor.getMonth()];
@@ -2980,18 +3109,29 @@ async function performHealthCheck(){
   panel.style.display = 'block';
   const hardCount = results.filter(r=>r.severity==='hard').length;
   const softCount = results.filter(r=>r.severity==='soft').length;
-  document.getElementById('healthCheckSummary').textContent =
-    results.length===0 ? '沒有發現問題,目前排班狀況良好!' : `共發現 ${results.length} 個項目:${hardCount} 個不可違反、${softCount} 個建議調整。`;
+  document.getElementById('healthCheckSummary').innerHTML = results.length===0
+    ? '<div class="hc-summary"><div class="hc-stat ok"><span class="hc-count">0</span><span class="hc-label">沒有發現問題,目前排班狀況良好</span></div></div>'
+    : `<div class="hc-summary">
+         <div class="hc-stat hard"><span class="hc-count">${hardCount}</span><span class="hc-label">不可違反</span></div>
+         <div class="hc-stat soft"><span class="hc-count">${softCount}</span><span class="hc-label">建議調整</span></div>
+       </div>
+       <div class="hint" style="margin-top:0;">點任一項可跳到班表上對應的格子。</div>`;
   const container = document.getElementById('healthCheckResults');
-  container.innerHTML = results.length===0 ? '' : results.map(r=>`
-    <div class="hc-item ${r.severity}">
+  const itemHtml = r=>{
+    const jump = (r.staffId && /^\d+\/\d+/.test(r.dateLabel||'')) ? ` data-jump="${escapeHtml(r.staffId)}|${parseInt(r.dateLabel.split('/')[1],10)}" tabindex="0" role="button"` : '';
+    return `
+    <div class="hc-item ${r.severity}"${jump}>
       <span class="hc-badge">${r.severity==='hard'?'不可違反':'建議調整'}</span>
       <div class="hc-body">
-        <div class="hc-title">${r.dateLabel} － ${r.staffName} － ${r.title}</div>
-        ${r.suggestions.length ? `<div class="hc-suggest">💡 建議:${r.suggestions.join('；')}</div>` : ''}
+        <div class="hc-title">${escapeHtml(r.title)}</div>
+        <div class="hc-meta">${escapeHtml(r.dateLabel)} · ${escapeHtml(r.staffName)}</div>
+        ${r.suggestions.length ? `<div class="hc-suggest">建議:${r.suggestions.map(escapeHtml).join('；')}</div>` : ''}
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  };
+  const hard = results.filter(r=>r.severity==='hard'), soft = results.filter(r=>r.severity==='soft');
+  container.innerHTML = (hard.length ? `<div class="hc-group-title">不可違反 · ${hard.length}</div>${hard.map(itemHtml).join('')}` : '')
+    + (soft.length ? `<div class="hc-group-title">建議調整 · ${soft.length}</div>${soft.map(itemHtml).join('')}` : '');
   panel.scrollIntoView({behavior:'smooth', block:'nearest'});
   showToast(results.length===0 ? '健檢完成,沒有發現問題' : `健檢完成,發現 ${results.length} 個項目`);
   return results;
