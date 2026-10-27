@@ -347,6 +347,8 @@
   .login-link{display:block;width:100%;min-height:44px;border:none;background:none;color:var(--muted);font-size:13px;text-decoration:underline;cursor:pointer;margin-top:4px;}
   .login-link:hover{color:var(--ink);}
   .login-forgot{margin-top:6px;padding-top:16px;border-top:1px solid var(--border);}
+  .login-error{margin:2px 0 12px;padding:10px 12px;border-left:3px solid var(--danger);background:var(--danger-soft);color:var(--ink);font-size:13px;line-height:1.6;border-radius:0 var(--radius) var(--radius) 0;word-break:break-word;}
+  .login-btn:disabled{opacity:.6;cursor:wait;}
   .login-foot{margin-top:16px;font-size:11.5px;color:var(--muted);text-align:center;line-height:1.6;}
 
   /* ===== 後台管理 ===== */
@@ -405,6 +407,7 @@
     <div class="login-field" id="loginSetupTokenField"><label for="loginSetupToken">建立口令(SETUP_TOKEN)</label>
       <input type="password" id="loginSetupToken" autocomplete="off" placeholder="向系統安裝者索取" style="display:none;"></div>
 
+    <div id="loginError" class="login-error" role="alert" hidden></div>
     <button id="loginSubmit" class="login-btn" type="button">登入</button>
     <button id="showForgotBtn" class="login-link" type="button" aria-expanded="false" aria-controls="forgotPanel">忘記密碼?</button>
 
@@ -416,6 +419,7 @@
         <input type="text" id="forgotRecoveryCode" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX"></div>
       <div class="login-field"><label for="forgotNewPassword">新密碼(至少 8 個字元)</label>
         <input type="password" id="forgotNewPassword" autocomplete="new-password"></div>
+      <div id="forgotError" class="login-error" role="alert" hidden></div>
       <button id="forgotSubmitBtn" class="login-btn secondary" type="button">重設密碼</button>
     </section>
     <div class="login-foot">帳號密碼由系統管理者於後台建立與管理。密碼至少 8 個字元。</div>
@@ -976,6 +980,7 @@ async function loadUsers(){
 
 async function initLogin(){
   const r = await window.Api.req('GET', '/api/auth/status');
+  if(!r.ok) showFormError('loginError', describeFailure(r, '無法取得系統狀態'));
   needsSetup = !!(r.data && r.data.needsSetup);
   const hint = document.getElementById('loginFirstTimeHint');
   const title = document.getElementById('loginTitle');
@@ -1017,18 +1022,43 @@ async function tryAutoLogin(){
   return false;
 }
 
+// 登入畫面專用的錯誤顯示(主畫面的 toast 在登入層底下看不到)
+function showFormError(id, msg){
+  const el = document.getElementById(id);
+  el.textContent = msg || '';
+  el.hidden = !msg;
+}
+// 把 Api.req 的結果轉成人看得懂的原因(含 HTTP 狀態碼,方便回報問題)
+function describeFailure(r, fallback){
+  if(r.networkError) return '無法連線到伺服器,請確認網路或伺服器是否正常。';
+  if(r.data && r.data.error) return r.data.error + (r.status>=500 ? `(HTTP ${r.status})` : '');
+  if(r.status===429) return '嘗試次數過多,請稍後再試。';
+  return `${fallback}(伺服器回應 HTTP ${r.status},沒有說明原因。部署在 Cloudflare 時,可能是 CPU 時間限制,請看 docs/cloudflare.md)`;
+}
+['loginUsername','loginPassword','loginSetupToken'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', ()=> showFormError('loginError',''));
+});
+
 document.getElementById('loginSubmit').onclick = async ()=>{
+  const btn = document.getElementById('loginSubmit');
+  if(btn.disabled) return;
+  showFormError('loginError','');
+  btn.disabled = true; const label = btn.textContent; btn.textContent = '處理中…';
+  try { await doLogin(); }
+  catch(e){ console.error(e); showFormError('loginError','發生未預期的錯誤:'+(e && e.message || e)); }
+  finally { btn.disabled = false; btn.textContent = label; }
+};
+async function doLogin(){
   const uname = document.getElementById('loginUsername').value.trim();
   const pw = document.getElementById('loginPassword').value;
-  if(!uname || !pw){ showToast('請輸入帳號與密碼'); return; }
+  if(!uname || !pw){ showFormError('loginError','請輸入帳號與密碼'); return; }
 
   const endpoint = needsSetup ? '/api/auth/setup' : '/api/auth/login';
   const body = { username: uname, password: pw };
   if(needsSetup) body.setupToken = document.getElementById('loginSetupToken').value;
   const r = await window.Api.req('POST', endpoint, body);
-  if(r.networkError){ showToast('無法連線到伺服器,請確認排班系統伺服器有開著'); return; }
   if(!r.ok || !r.data || !r.data.token){
-    showToast((r.data && r.data.error) || '登入失敗'); return;
+    showFormError('loginError', describeFailure(r, needsSetup ? '建立失敗' : '登入失敗')); return;
   }
   window.Api.setToken(r.data.token);
   if(needsSetup){
@@ -1041,7 +1071,7 @@ document.getElementById('loginSubmit').onclick = async ()=>{
     showToast('已建立管理者帳號並登入');
   }
   await enterApp(r.data.user);
-};
+}
 
 // 顯示「只出現這一次」的救援碼,要求使用者按確認才繼續
 function showRecoveryCodeGate(code, title, onContinue){
@@ -1076,10 +1106,13 @@ document.getElementById('forgotSubmitBtn').onclick = async ()=>{
   const uname = document.getElementById('forgotUsername').value.trim();
   const code = document.getElementById('forgotRecoveryCode').value.trim();
   const newPw = document.getElementById('forgotNewPassword').value;
-  if(!uname || !code || !newPw){ showToast('請把帳號、救援碼、新密碼都填寫完整'); return; }
-  const r = await window.Api.req('POST', '/api/auth/recover', { username: uname, recoveryCode: code, newPassword: newPw });
-  if(r.networkError){ showToast('無法連線到伺服器,請確認排班系統伺服器有開著'); return; }
-  if(!r.ok){ showToast((r.data && r.data.error) || '重設失敗'); return; }
+  showFormError('forgotError','');
+  if(!uname || !code || !newPw){ showFormError('forgotError','請把帳號、救援碼、新密碼都填寫完整'); return; }
+  const fbtn = document.getElementById('forgotSubmitBtn'); fbtn.disabled = true;
+  let r;
+  try { r = await window.Api.req('POST', '/api/auth/recover', { username: uname, recoveryCode: code, newPassword: newPw }); }
+  finally { fbtn.disabled = false; }
+  if(!r.ok){ showFormError('forgotError', describeFailure(r, '重設失敗')); return; }
   document.getElementById('forgotUsername').value='';
   document.getElementById('forgotRecoveryCode').value='';
   document.getElementById('forgotNewPassword').value='';
