@@ -56,6 +56,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
 <script src="vendor/xlsx.full.min.js"></script>
+<script src="scheduling-core.js"></script>
 <style>
   :root{
     --bg:#ECF3E3; --bg-paper:#EFEEE7; --surface:#FFFFFF; --ink:#1F2A1D; --muted:#7C8B72;
@@ -520,6 +521,8 @@
 </div>
 
 <script>
+const { SHIFT_TIME_RANGE, gapHours, ROTATION_SEQUENCE, isPureWhiteRotationStaff, rotationCategoryForMonth,
+        EVENT_COLORS, eventColor, contrastTextColor, tintBg, resolveColor, presetToHex } = SchedulingCore;
 const ROLES = [
   {key:'nursing', label:'護理人員'},
   {key:'admin', label:'行政人員'},
@@ -608,35 +611,8 @@ const ROLE_ALL = 'all';
 function monthKey(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
 function daysInMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0).getDate(); }
 function dateStr(d, day){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`; }
-function customLeaveCategory(v){
-  const c = customShiftCodes.find(c=>c.code===v);
-  return c ? (c.leaveCategory || '') : '';
-}
-function isSpecialLeaveCode(v){
-  return customLeaveCategory(v)==='special';
-}
-function isCompLeaveCode(v){
-  return customLeaveCategory(v)==='comp';
-}
-function isRegularLeaveCodeOnly(v){
-  // 注意:'R' 本身不是內建代碼(只有 R1/R2 是),不可在此硬編碼判斷,
-  // 否則會蓋掉使用者自訂代碼(例如自訂了一個代碼字面上就是「R」)的「計入休假統計」設定,
-  // 導致自訂的補休/特休代碼被誤算成一般休假天數。一律以 customLeaveCategory 為準。
-  if(v==='休' || v==='R1' || v==='R2') return true;
-  const cat = customLeaveCategory(v);
-  if(cat) return cat==='regular';
-  return false;
-}
-function isWorkCode(v){
-  if(!v) return false;
-  if(v==='休' || v==='R1' || v==='R2' || v==='/') return false;
-  return customLeaveCategory(v)==='';
-}
-function isRestCode(v){
-  if(v==='休' || v==='R1' || v==='R2') return true;
-  const cat = customLeaveCategory(v);
-  return cat==='special' || cat==='comp' || cat==='regular';
-}
+const { customLeaveCategory, isSpecialLeaveCode, isCompLeaveCode, isRegularLeaveCodeOnly, isWorkCode, isRestCode } =
+  SchedulingCore.makeLeaveHelpers(()=>customShiftCodes);
 function uid(){ return 's'+Math.random().toString(36).slice(2,9); }
 
 function showToast(msg){
@@ -1640,46 +1616,6 @@ document.getElementById('orgCalSave').onclick = async ()=>{
 /* ---------- Admin: 機構常態規則 (Excel-style) ---------- */
 function occurrenceOfWeekday(date){
   return Math.ceil(date.getDate() / 7);
-}
-const EVENT_COLORS = [
-  {v:'blue', t:'藍', bg:'#DCEBFB', fg:'#1D5FA8'},
-  {v:'green', t:'綠', bg:'#DCEEDC', fg:'#2E7D32'},
-  {v:'orange', t:'橘', bg:'#FBE7CE', fg:'#B5651D'},
-  {v:'red', t:'紅', bg:'#FBDCDC', fg:'#C1573A'},
-  {v:'purple', t:'紫', bg:'#EAE0F5', fg:'#6A3FA0'},
-  {v:'gray', t:'灰', bg:'#E6E6E0', fg:'#5C5C52'},
-];
-function eventColor(v){ return EVENT_COLORS.find(c=>c.v===v) || EVENT_COLORS[3]; }
-function contrastTextColor(hex){
-  const h = hex.replace('#','');
-  if(h.length!==6) return '#000';
-  const r = parseInt(h.substr(0,2),16), g = parseInt(h.substr(2,2),16), b = parseInt(h.substr(4,2),16);
-  const luminance = (0.299*r + 0.587*g + 0.114*b) / 255;
-  return luminance > 0.6 ? '#1F2A1D' : '#FFFFFF';
-}
-function tintBg(hex){
-  // 淺化顏色當作背景色底,文字用原色的深一點版本,讓表格看起來仍是「淺底深字」風格
-  const h = hex.replace('#','');
-  if(h.length!==6) return {bg:hex, fg:contrastTextColor(hex)};
-  const r = parseInt(h.substr(0,2),16), g = parseInt(h.substr(2,2),16), b = parseInt(h.substr(4,2),16);
-  const mix = (c)=> Math.round(c + (255-c)*0.78);
-  const bg = `#${[mix(r),mix(g),mix(b)].map(n=>n.toString(16).padStart(2,'0')).join('')}`;
-  return {bg, fg:hex};
-}
-function resolveColor(v){
-  if(!v) return EVENT_COLORS[3];
-  const preset = EVENT_COLORS.find(c=>c.v===v);
-  if(preset) return preset;
-  if(/^#[0-9A-Fa-f]{6}$/.test(v)){
-    const t = tintBg(v);
-    return {v, t:v, bg:t.bg, fg:t.fg};
-  }
-  return EVENT_COLORS[3];
-}
-function presetToHex(v){
-  if(/^#[0-9A-Fa-f]{6}$/.test(v)) return v;
-  const p = EVENT_COLORS.find(c=>c.v===v);
-  return p ? p.fg : '#5AA94E';
 }
 function buildColorPickerCell(rowIdx, colIdx, val){
   const td = document.createElement('td');
@@ -2978,13 +2914,11 @@ async function autoScheduleNursing(){
   }
   function restIntervalOk(p, day, newCode){
     const prev = day>1 ? getCode(p, day-1) : '';
-    if(SHIFT_TIME_RANGE[prev] && SHIFT_TIME_RANGE[newCode]){
-      if(((24+SHIFT_TIME_RANGE[newCode][0]) - SHIFT_TIME_RANGE[prev][1]) < minGap) return false;
-    }
+    const gapBefore = gapHours(prev, newCode);
+    if(gapBefore!==null && gapBefore < minGap) return false;
     const next = day<nDays ? getCode(p, day+1) : '';
-    if(SHIFT_TIME_RANGE[newCode] && SHIFT_TIME_RANGE[next]){
-      if(((24+SHIFT_TIME_RANGE[next][0]) - SHIFT_TIME_RANGE[newCode][1]) < minGap) return false;
-    }
+    const gapAfter = gapHours(newCode, next);
+    if(gapAfter!==null && gapAfter < minGap) return false;
     return true;
   }
   function weekendForcesRest(p, day){
@@ -3122,26 +3056,6 @@ document.getElementById('autoScheduleBtn').onclick = async ()=>{
 };
 
 
-const SHIFT_TIME_RANGE = {'Di':[8,16],'2Di':[8,16],'3Di':[8,16],'2D8':[8,20],'3D8':[8,20],'D8':[8,20],'E':[16,24],'E8':[20,32],'N':[24,32]};
-
-/* 純白班同仁的3個月輪調:2Di / 3Di / 貼班(白班) 循環 */
-const ROTATION_SEQUENCE = ['2Di','3Di','float'];
-function isPureWhiteRotationStaff(p){
-  return p.rotationTrack==='rotate' && p.eligWhite && !p.eligEvening && !p.eligNight && !p.partTime;
-}
-function rotationCategoryForMonth(p, monthCursorDate){
-  if(!p.rotationStartMonth || !p.rotationStartShift) return null;
-  const [sy, sm] = p.rotationStartMonth.split('-').map(Number);
-  if(!sy || !sm) return null;
-  const startIdx = ROTATION_SEQUENCE.indexOf(p.rotationStartShift);
-  if(startIdx===-1) return null;
-  const monthsElapsed = (monthCursorDate.getFullYear()*12 + monthCursorDate.getMonth()) - (sy*12 + (sm-1));
-  if(monthsElapsed < 0) return null; // hasn't started yet
-  const stepsForward = Math.floor(monthsElapsed / 3);
-  const idx = (startIdx + stepsForward) % ROTATION_SEQUENCE.length;
-  return ROTATION_SEQUENCE[idx];
-}
-
 async function runHealthCheck(){
   const items = staff[currentRole];
   const monthData = await loadMonth();
@@ -3193,11 +3107,8 @@ async function runHealthCheck(){
     const minGap = parseFloat(getRuleConfig('rest_interval').param) || 12;
     for(let day=1; day<nDays; day++){
       const v1 = codes[day-1], v2 = codes[day];
-      if(!SHIFT_TIME_RANGE[v1] || !SHIFT_TIME_RANGE[v2]) continue;
-      const end1 = SHIFT_TIME_RANGE[v1][1];
-      const start2 = 24 + SHIFT_TIME_RANGE[v2][0];
-      const gap = start2 - end1;
-      if(gap < minGap){
+      const gap = gapHours(v1, v2);
+      if(gap!==null && gap < minGap){
         addResult('rest_interval', `${v1}(${monthCursor.getMonth()+1}/${day}) 接 ${v2}(${monthCursor.getMonth()+1}/${day+1}),休息僅 ${gap} 小時`, p.name, `${monthCursor.getMonth()+1}/${day}-${day+1}`, p);
       }
     }
