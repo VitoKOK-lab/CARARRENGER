@@ -2,45 +2,7 @@
 // 舊資料存的是像 'blue'/'green' 這種代號,新資料存的是像 '#3A7BD5' 這種hex色碼,
 // resolveColor() 要兩種都能正確處理,不能讓舊資料顯示壞掉。
 
-const EVENT_COLORS = [
-  {v:'blue', t:'藍', bg:'#DCEBFB', fg:'#1D5FA8'},
-  {v:'green', t:'綠', bg:'#DCEEDC', fg:'#2E7D32'},
-  {v:'orange', t:'橘', bg:'#FBE7CE', fg:'#B5651D'},
-  {v:'red', t:'紅', bg:'#FBDCDC', fg:'#C1573A'},
-  {v:'purple', t:'紫', bg:'#EAE0F5', fg:'#6A3FA0'},
-  {v:'gray', t:'灰', bg:'#E6E6E0', fg:'#5C5C52'},
-];
-
-function contrastTextColor(hex){
-  const h = hex.replace('#','');
-  if(h.length!==6) return '#000';
-  const r = parseInt(h.substr(0,2),16), g = parseInt(h.substr(2,2),16), b = parseInt(h.substr(4,2),16);
-  const luminance = (0.299*r + 0.587*g + 0.114*b) / 255;
-  return luminance > 0.6 ? '#1F2A1D' : '#FFFFFF';
-}
-function tintBg(hex){
-  const h = hex.replace('#','');
-  if(h.length!==6) return {bg:hex, fg:contrastTextColor(hex)};
-  const r = parseInt(h.substr(0,2),16), g = parseInt(h.substr(2,2),16), b = parseInt(h.substr(4,2),16);
-  const mix = (c)=> Math.round(c + (255-c)*0.78);
-  const bg = `#${[mix(r),mix(g),mix(b)].map(n=>n.toString(16).padStart(2,'0')).join('')}`;
-  return {bg, fg:hex};
-}
-function resolveColor(v){
-  if(!v) return EVENT_COLORS[3];
-  const preset = EVENT_COLORS.find(c=>c.v===v);
-  if(preset) return preset;
-  if(/^#[0-9A-Fa-f]{6}$/.test(v)){
-    const t = tintBg(v);
-    return {v, t:v, bg:t.bg, fg:t.fg};
-  }
-  return EVENT_COLORS[3];
-}
-function presetToHex(v){
-  if(/^#[0-9A-Fa-f]{6}$/.test(v)) return v;
-  const p = EVENT_COLORS.find(c=>c.v===v);
-  return p ? p.fg : '#5AA94E';
-}
+const { EVENT_COLORS, contrastTextColor, tintBg, resolveColor, presetToHex } = require('../public/scheduling-core.js');
 
 let pass=0, fail=0;
 function test(name, cond){

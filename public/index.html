@@ -56,15 +56,19 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
 <script src="vendor/xlsx.full.min.js"></script>
+<script src="scheduling-core.js"></script>
 <style>
   :root{
-    --bg:#ECF3E3; --bg-paper:#EFEEE7; --surface:#FFFFFF; --ink:#1F2A1D; --muted:#7C8B72;
-    --border:#DCE4D3; --grid-line:#C9D4BC;
-    --primary:#5AA94E; --primary-soft:#E3F0DF; --primary-deep:#3D7A33;
-    --amber:#DDAC4C; --amber-soft:#FBF0DA; --amber-deep:#9C7527;
-    --brown:#785D42; --brown-soft:#F1E6DA;
-    --off:#DCE0D2; --danger:#C1573A; --danger-soft:#FBE3DA;
-    --weekend-tint:#F5EFDD;
+    /* 米白底 + 寶石色:jade(主色/白班) topaz(小夜) amethyst(行政) ruby(警示) */
+    --bg:#FBFBFC; --bg-paper:#F3F3F1; --surface:#FFFFFF; --ink:#1B2430; --muted:#667085;
+    --border:#E3E5E8; --grid-line:#D5D8DD;
+    --primary:#1F7A6B; --primary-soft:#DDF0EB; --primary-deep:#14594D;
+    --amber:#C8932B; --amber-soft:#FBF1DB; --amber-deep:#8A5F12;
+    --brown:#6D4C9F; --brown-soft:#ECE6F5;
+    --off:#E6E8EB; --danger:#B4332E; --danger-soft:#FBE4E2;
+    --weekend-tint:#F4F1E8;
+    --mono:'Space Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --radius:4px;
   }
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans TC','PingFang TC','PingFang SC','Microsoft JhengHei','Heiti TC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;}
@@ -88,8 +92,7 @@
   .week-label{font-weight:700;font-size:14.5px;min-width:100px;text-align:center;}
   .auto-btn{border:none;border-radius:11px;background:var(--primary);color:#fff;padding:9px 16px;cursor:pointer;font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;}
   .auto-btn:hover{background:var(--primary-deep);}
-  #exportBtn:hover{background:#5c4630 !important;}
-  .role-tabs{display:flex;gap:8px;margin-bottom:0;}
+    .role-tabs{display:flex;gap:8px;margin-bottom:0;}
   .role-tab{padding:8px 16px;border-radius:999px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;font-size:13.5px;font-weight:700;color:var(--muted);display:flex;align-items:center;gap:7px;}
   .role-tab .dot{width:8px;height:8px;border-radius:50%;}
   .role-tab.active[data-role="nursing"]{background:var(--primary-soft);color:var(--primary-deep);border-color:var(--primary);}
@@ -163,7 +166,7 @@
   .legend span{display:inline-flex;align-items:center;gap:6px;font-weight:500;}
   .legend i{width:10px;height:10px;border-radius:3px;display:inline-block;}
   .empty-state{padding:30px 10px;text-align:center;color:var(--muted);font-size:13px;}
-  .brand-footer{height:14px;margin:32px -20px 0;background:linear-gradient(90deg,#8CC150 0%,#5AA94E 30%,#B6D37F 55%,#785D42 100%);opacity:.65;border-radius:0 0 4px 4px;}
+  .brand-footer{height:3px;margin:32px -20px 0;background:linear-gradient(90deg,var(--primary),var(--amber) 55%,var(--brown));opacity:.8;}
   .footer-note{text-align:center;color:var(--muted);font-size:11px;padding:10px 0 24px;letter-spacing:.04em;}
 
   #printHeader{display:none;}
@@ -218,6 +221,111 @@
   .rule-form select, .rule-form input[type=text]{border:1px solid var(--border);border-radius:7px;padding:6px 8px;font-size:12.5px;font-family:inherit;}
   .occ-check{display:flex;gap:6px;flex-wrap:wrap;}
   .occ-check label{background:#fff;border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11.5px;}
+
+  /* ================= UI/UX 優化層(參考 MK-monthly 班表頁的版面語言) =================
+     直角細線、kicker 標籤、人員 chip、固定姓名欄、缺人紅底、違規左線區塊、手機斷點。
+     刻意放在原樣式之後,以覆寫為主,不改動 JS 用到的 class / id。 */
+  body{-webkit-tap-highlight-color:transparent;}
+  .num,.week-label,.shift-cell,table.schedule thead th,tr.summary-row td.count-cell,.hc-count{font-family:var(--mono);font-variant-numeric:tabular-nums;}
+  .shift-cell{font-size:11px;}
+  table.schedule thead th{font-size:11px;font-weight:700;letter-spacing:0;}
+  table.schedule thead th.evt-note,table.schedule thead th.code-head{font-family:inherit;}
+
+  /* 焦點可見(鍵盤操作) */
+  button:focus-visible,select:focus-visible,input:focus-visible,.role-tab:focus-visible,.code-ref-chip:focus-visible,.hc-item:focus-visible{outline:2px solid var(--primary);outline-offset:2px;}
+  .shift-cell:focus-visible{outline:2px solid var(--primary);outline-offset:-2px;}
+  button{font-family:inherit;}
+
+  /* 頂部導覽與品牌區:低調、細線 */
+  .topnav{justify-content:flex-start;padding:12px 0 0;border-bottom:1px solid var(--border);gap:4px;}
+  .topnav button{border:none;border-bottom:2px solid transparent;border-radius:0;background:none;color:var(--muted);padding:10px 14px;min-height:44px;font-size:13px;}
+  .topnav button:hover{color:var(--ink);}
+  .topnav button.active{background:none;color:var(--ink);border-bottom-color:var(--primary);}
+  .topnav .nav-right{margin-left:auto;font-size:12px;font-weight:600;}
+  .brand-banner{padding:18px 0 12px;text-align:left;display:flex;align-items:center;gap:14px;}
+  .brand-banner img{height:36px;}
+  .brand-banner .sub{margin:0;color:var(--muted);letter-spacing:.14em;font-size:11px;font-weight:600;}
+
+  /* 控制列 */
+  .controlbar{border-radius:var(--radius);padding:12px 14px;gap:10px 16px;}
+  .role-tab{min-height:40px;padding:8px 16px;border-width:1px;}
+  .role-tab:hover{border-color:var(--ink);}
+  .control-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .week-nav button{width:40px;height:40px;border-radius:var(--radius);background:var(--surface);}
+  .week-label{font-size:14px;min-width:112px;}
+  .auto-btn{min-height:40px;padding:8px 14px;border-radius:var(--radius);background:var(--surface);color:var(--ink);border:1px solid var(--border);font-size:13px;font-weight:600;transition:background-color .15s,border-color .15s,color .15s;}
+  .auto-btn:hover{background:var(--bg-paper);border-color:var(--ink);}
+  .auto-btn.primary{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:700;}
+  .auto-btn.primary:hover{background:var(--primary-deep);border-color:var(--primary-deep);}
+  .auto-btn:disabled{opacity:.45;cursor:not-allowed;}
+
+  /* 面板:kicker 標題 + 細線 */
+  .panel{border-radius:var(--radius);padding:16px 18px;}
+  .panel h3{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--amber-deep);font-weight:700;margin-bottom:14px;}
+  .panel h3::before{display:none;}
+  .panel h3::after{content:'';flex:1;height:1px;background:var(--border);}
+  .threshold-row{border-radius:var(--radius);}
+  .threshold-row select,.threshold-row input[type=text],.threshold-row input[type=number]{min-height:34px;border-radius:var(--radius);}
+
+  /* 班表格 */
+  .grid-wrap{border-radius:var(--radius);max-height:calc(100dvh - 220px);overflow:auto;}
+  table.schedule thead th{top:0;z-index:4;}
+  table.schedule td.name-cell{border-right:1px solid var(--ink);}
+  .shift-cell{width:40px;height:34px;transition:background-color .12s;}
+  .shift-cell:hover{filter:none;box-shadow:inset 0 0 0 1.5px var(--ink);}
+  .shift-cell.night{color:#fff;}
+  tr.summary-row td.count-cell.low{background:var(--danger-soft) !important;color:var(--danger);}
+  .legend{margin-top:12px;}
+  .legend i{border-radius:2px;}
+  .code-ref-chip{border-radius:var(--radius);min-height:34px;}
+  .code-ref-chip:hover{transform:none;box-shadow:inset 0 0 0 1.5px var(--ink);}
+  .merged-chip{min-height:30px;}
+
+  /* 健檢報告:摘要列 + 嚴重度分組 + 左線區塊 */
+  .hc-summary{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+  .hc-stat{flex:1;min-width:130px;border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;background:var(--surface);}
+  .hc-stat .hc-count{display:block;font-size:24px;font-weight:700;line-height:1.2;}
+  .hc-stat .hc-label{font-size:11px;letter-spacing:.14em;color:var(--muted);}
+  .hc-stat.hard .hc-count{color:var(--danger);}
+  .hc-stat.soft .hc-count{color:var(--amber-deep);}
+  .hc-stat.ok .hc-count{color:var(--primary-deep);}
+  .hc-group-title{font-size:11px;font-weight:700;letter-spacing:.18em;color:var(--muted);margin:16px 0 8px;display:flex;align-items:center;gap:10px;}
+  .hc-group-title::after{content:'';flex:1;height:1px;background:var(--border);}
+  .hc-item{border-radius:0 var(--radius) var(--radius) 0;border:none;border-left:3px solid transparent;padding:10px 14px;margin-bottom:6px;transition:background-color .15s;}
+  .hc-item.hard{background:var(--danger-soft);border:none;border-left:3px solid var(--danger);}
+  .hc-item.soft{background:var(--amber-soft);border:none;border-left:3px solid var(--amber);}
+  .hc-item[data-jump]{cursor:pointer;}
+  .hc-item[data-jump]:hover{filter:brightness(.97);}
+  .hc-badge{border-radius:2px;font-size:10px;letter-spacing:.08em;}
+  .hc-meta{font-family:var(--mono);font-size:11.5px;color:var(--muted);}
+  .hc-item.hard .hc-badge{background:var(--danger);}
+  .hc-item.soft .hc-badge{background:var(--amber-deep);}
+  @keyframes cellPulse{0%,100%{box-shadow:inset 0 0 0 2px var(--danger);}50%{box-shadow:inset 0 0 0 4px var(--danger);}}
+  .shift-cell.flash{animation:cellPulse .6s ease-in-out 3;}
+  @media (prefers-reduced-motion: reduce){ .shift-cell.flash{animation:none;box-shadow:inset 0 0 0 3px var(--danger);} *{transition-duration:.01ms !important;} }
+
+  .toast{border-radius:var(--radius);}
+  .footer-note{font-size:11px;}
+
+  /* ===== 手機 / 小螢幕 ===== */
+  @media (max-width: 720px){
+    .app{padding:0 10px;}
+    .brand-banner{padding:12px 0 8px;}
+    .brand-banner .sub{font-size:10px;letter-spacing:.08em;}
+    .controlbar{padding:10px;}
+    .role-tabs{overflow-x:auto;width:100%;flex-wrap:nowrap;scrollbar-width:none;}
+    .role-tabs::-webkit-scrollbar{display:none;}
+    .role-tab{flex-shrink:0;}
+    .control-right{width:100%;gap:6px;}
+    .week-nav{width:100%;justify-content:space-between;}
+    .auto-btn{flex:1 1 calc(50% - 6px);justify-content:center;min-height:44px;}
+    .panel{padding:12px;}
+    .grid-wrap{max-height:calc(100dvh - 180px);}
+    .shift-cell{width:36px;height:40px;}
+    table.schedule td.name-cell{min-width:78px;padding:6px 8px;}
+    .hc-stat{min-width:100px;}
+    .threshold-row{padding:10px;}
+  }
 </style>
 </head>
 <body>
@@ -245,9 +353,9 @@
 <div class="app" id="mainApp" style="display:none;">
 
   <div class="topnav">
-    <button id="navCalendar" class="active">📅 班表檢視</button>
-    <button id="navAdmin" style="display:none;">⚙ 後台管理</button>
-    <button id="logoutBtn" style="border:1.5px solid var(--border);background:var(--surface);color:var(--muted);padding:8px 18px;border-radius:999px;font-size:13px;font-weight:700;cursor:pointer;">登出(<span id="currentUserLabel"></span>)</button>
+    <button id="navCalendar" class="active">班表檢視</button>
+    <button id="navAdmin" style="display:none;">後台管理</button>
+    <button id="logoutBtn" class="nav-right">登出(<span id="currentUserLabel"></span>)</button>
   </div>
 
   <div id="calendarView">
@@ -262,20 +370,20 @@
         <div class="role-tab" data-role="admin"><span class="dot"></span>行政人員</div>
         <div class="role-tab" data-role="care"><span class="dot"></span>照顧服務員</div>
       </div>
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <div class="control-right">
         <div class="week-nav">
-          <button id="prevMonth">‹</button>
+          <button id="prevMonth" aria-label="上個月">‹</button>
           <div class="week-label" id="monthLabel"></div>
-          <button id="nextMonth">›</button>
+          <button id="nextMonth" aria-label="下個月">›</button>
         </div>
-        <button class="auto-btn" id="autoScheduleBtn">⚡ 自動排班(草稿)</button>
-        <button class="auto-btn" id="healthCheckBtn" style="background:#B5651D;">🩺 排班健檢</button>
-        <button class="auto-btn" id="exportBtn" style="background:var(--brown);">⭳ 匯出 Excel</button>
-        <button class="auto-btn" id="importBtn" style="background:var(--amber-deep);">⭱ 匯入 Excel</button>
+        <button class="auto-btn primary" id="autoScheduleBtn">自動排班(草稿)</button>
+        <button class="auto-btn primary" id="healthCheckBtn">排班健檢</button>
+        <button class="auto-btn" id="exportBtn">匯出 Excel</button>
+        <button class="auto-btn" id="importBtn">匯入 Excel</button>
         <input type="file" id="importFileInput" accept=".xlsx,.xls" style="display:none;">
-        <button class="auto-btn" id="printBtn" style="background:#5C6B52;">🖨 列印班表(A4橫式)</button>
-        <button class="auto-btn" id="toggleMergedBtn" style="background:#2F7F86;">🔀 合併檢視</button>
-        <button class="auto-btn" id="toggleDraftBtn" style="background:#6A5ACD;">📑 對照版班表</button>
+        <button class="auto-btn" id="printBtn">列印(A4 橫式)</button>
+        <button class="auto-btn" id="toggleMergedBtn">合併檢視</button>
+        <button class="auto-btn" id="toggleDraftBtn">對照版班表</button>
       </div>
     </div>
 
@@ -319,7 +427,7 @@
     </div>
 
     <div class="panel" id="importPreviewPanel" style="display:none;">
-      <h3>⭱ 匯入預覽</h3>
+      <h3>匯入預覽</h3>
       <div id="importSummary" style="font-size:12.5px;color:var(--muted);margin-bottom:10px;"></div>
       <div id="importUnmatchedList" style="margin-bottom:12px;"></div>
       <div class="hint" style="margin-top:0;">匯入只會覆蓋 Excel 檔案裡有值的儲存格,Excel 裡是空白的地方不會動到系統原本的資料。姓名比對不到的人不會被匯入,請先確認左側清單。</div>
@@ -359,7 +467,7 @@
     </div>
 
     <div class="panel" id="healthCheckPanel" style="display:none;">
-      <h3>🩺 排班健檢報告</h3>
+      <h3>排班健檢報告</h3>
       <div id="healthCheckSummary" style="font-size:12.5px;color:var(--muted);margin-bottom:10px;"></div>
       <div id="healthCheckResults"></div>
     </div>
@@ -370,7 +478,7 @@
 
   <div id="adminView">
     <div class="brand-banner">
-      <div class="sub" style="font-size:16px;font-weight:700;color:var(--ink);letter-spacing:.02em;">⚙ 後台管理</div>
+      <div class="sub" style="font-size:16px;font-weight:700;color:var(--ink);letter-spacing:.02em;">後台管理</div>
     </div>
 
     <div id="adminContent">
@@ -520,6 +628,8 @@
 </div>
 
 <script>
+const { SHIFT_TIME_RANGE, gapHours, ROTATION_SEQUENCE, isPureWhiteRotationStaff, rotationCategoryForMonth,
+        EVENT_COLORS, eventColor, contrastTextColor, tintBg, resolveColor, presetToHex } = SchedulingCore;
 const ROLES = [
   {key:'nursing', label:'護理人員'},
   {key:'admin', label:'行政人員'},
@@ -608,35 +718,8 @@ const ROLE_ALL = 'all';
 function monthKey(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
 function daysInMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0).getDate(); }
 function dateStr(d, day){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`; }
-function customLeaveCategory(v){
-  const c = customShiftCodes.find(c=>c.code===v);
-  return c ? (c.leaveCategory || '') : '';
-}
-function isSpecialLeaveCode(v){
-  return customLeaveCategory(v)==='special';
-}
-function isCompLeaveCode(v){
-  return customLeaveCategory(v)==='comp';
-}
-function isRegularLeaveCodeOnly(v){
-  // 注意:'R' 本身不是內建代碼(只有 R1/R2 是),不可在此硬編碼判斷,
-  // 否則會蓋掉使用者自訂代碼(例如自訂了一個代碼字面上就是「R」)的「計入休假統計」設定,
-  // 導致自訂的補休/特休代碼被誤算成一般休假天數。一律以 customLeaveCategory 為準。
-  if(v==='休' || v==='R1' || v==='R2') return true;
-  const cat = customLeaveCategory(v);
-  if(cat) return cat==='regular';
-  return false;
-}
-function isWorkCode(v){
-  if(!v) return false;
-  if(v==='休' || v==='R1' || v==='R2' || v==='/') return false;
-  return customLeaveCategory(v)==='';
-}
-function isRestCode(v){
-  if(v==='休' || v==='R1' || v==='R2') return true;
-  const cat = customLeaveCategory(v);
-  return cat==='special' || cat==='comp' || cat==='regular';
-}
+const { customLeaveCategory, isSpecialLeaveCode, isCompLeaveCode, isRegularLeaveCodeOnly, isWorkCode, isRestCode } =
+  SchedulingCore.makeLeaveHelpers(()=>customShiftCodes);
 function uid(){ return 's'+Math.random().toString(36).slice(2,9); }
 
 function showToast(msg){
@@ -1641,46 +1724,6 @@ document.getElementById('orgCalSave').onclick = async ()=>{
 function occurrenceOfWeekday(date){
   return Math.ceil(date.getDate() / 7);
 }
-const EVENT_COLORS = [
-  {v:'blue', t:'藍', bg:'#DCEBFB', fg:'#1D5FA8'},
-  {v:'green', t:'綠', bg:'#DCEEDC', fg:'#2E7D32'},
-  {v:'orange', t:'橘', bg:'#FBE7CE', fg:'#B5651D'},
-  {v:'red', t:'紅', bg:'#FBDCDC', fg:'#C1573A'},
-  {v:'purple', t:'紫', bg:'#EAE0F5', fg:'#6A3FA0'},
-  {v:'gray', t:'灰', bg:'#E6E6E0', fg:'#5C5C52'},
-];
-function eventColor(v){ return EVENT_COLORS.find(c=>c.v===v) || EVENT_COLORS[3]; }
-function contrastTextColor(hex){
-  const h = hex.replace('#','');
-  if(h.length!==6) return '#000';
-  const r = parseInt(h.substr(0,2),16), g = parseInt(h.substr(2,2),16), b = parseInt(h.substr(4,2),16);
-  const luminance = (0.299*r + 0.587*g + 0.114*b) / 255;
-  return luminance > 0.6 ? '#1F2A1D' : '#FFFFFF';
-}
-function tintBg(hex){
-  // 淺化顏色當作背景色底,文字用原色的深一點版本,讓表格看起來仍是「淺底深字」風格
-  const h = hex.replace('#','');
-  if(h.length!==6) return {bg:hex, fg:contrastTextColor(hex)};
-  const r = parseInt(h.substr(0,2),16), g = parseInt(h.substr(2,2),16), b = parseInt(h.substr(4,2),16);
-  const mix = (c)=> Math.round(c + (255-c)*0.78);
-  const bg = `#${[mix(r),mix(g),mix(b)].map(n=>n.toString(16).padStart(2,'0')).join('')}`;
-  return {bg, fg:hex};
-}
-function resolveColor(v){
-  if(!v) return EVENT_COLORS[3];
-  const preset = EVENT_COLORS.find(c=>c.v===v);
-  if(preset) return preset;
-  if(/^#[0-9A-Fa-f]{6}$/.test(v)){
-    const t = tintBg(v);
-    return {v, t:v, bg:t.bg, fg:t.fg};
-  }
-  return EVENT_COLORS[3];
-}
-function presetToHex(v){
-  if(/^#[0-9A-Fa-f]{6}$/.test(v)) return v;
-  const p = EVENT_COLORS.find(c=>c.v===v);
-  return p ? p.fg : '#5AA94E';
-}
 function buildColorPickerCell(rowIdx, colIdx, val){
   const td = document.createElement('td');
   const wrap = document.createElement('div');
@@ -1997,7 +2040,7 @@ async function renderGrid(){
   document.getElementById('gridTitle').textContent = ROLES.find(r=>r.key===currentRole).label + ' · 本月排班';
 
   if(items.length===0){
-    table.innerHTML = `<tr><td class="empty-state">請先到「⚙ 後台管理 → 人員資料庫」新增${ROLES.find(r=>r.key===currentRole).label}</td></tr>`;
+    table.innerHTML = `<tr><td class="empty-state">請先到「後台管理 → 人員資料庫」新增${ROLES.find(r=>r.key===currentRole).label}</td></tr>`;
     document.getElementById('legendArea').innerHTML = '';
     return;
   }
@@ -2155,7 +2198,7 @@ async function renderGrid(){
       <span><i style="background:#1F6B3A"></i>R 機構排定休假</span>
       <span><i style="background:var(--danger-soft)"></i>低於設定門檻</span>
       <span><i style="background:var(--danger)"></i>當天人力為0(不論門檻)</span>
-      <span style="color:var(--muted);">日期格上的色塊/文字是機構事件(可在「⚙後台管理」設定顏色與名稱)</span>
+      <span style="color:var(--muted);">日期格上的色塊/文字是機構事件(可在「後台管理」設定顏色與名稱)</span>
     `;
   } else {
     legend.innerHTML = `
@@ -2166,7 +2209,7 @@ async function renderGrid(){
       <span><i style="background:#F4F4EF;border:1px solid #ddd"></i>／ 空班</span>
       <span><i style="background:#4C86C6"></i>R/R1 預約休假</span>
       <span><i style="background:#1F6B3A"></i>R 機構排定休假</span>
-      <span style="color:var(--muted);">日期格上的色塊/文字是機構事件(可在「⚙後台管理」設定顏色與名稱)</span>
+      <span style="color:var(--muted);">日期格上的色塊/文字是機構事件(可在「後台管理」設定顏色與名稱)</span>
     `;
   }
 
@@ -2958,139 +3001,16 @@ document.getElementById('applyLeaveBtn').onclick = async ()=>{
 async function autoScheduleNursing(){
   const items = staff['nursing'];
   const monthData = await loadMonth();
-  const nDays = daysInMonth(monthCursor);
-  const maxConsec = parseInt(getRuleConfig('consecutive_days').param) || 5;
-  const minGap = parseFloat(getRuleConfig('rest_interval').param) || 11;
   const calRow = orgCalendar[monthCursor.getMonth()];
   const calMin = calRow && calRow.actualRest ? parseInt(calRow.actualRest) : null;
-  const defaultMonthlyRest = (calMin!==null && !isNaN(calMin)) ? calMin : (parseInt(getRuleConfig('monthly_rest_days').param) || 10);
-  const log = [];
-
-  items.forEach(p=>{ if(!monthData[p.id]) monthData[p.id] = {}; });
-
-  function getCode(p, day){ const ds=dateStr(monthCursor, day); return monthData[p.id][ds] || ''; }
-  function setCode(p, day, code){ const ds=dateStr(monthCursor, day); monthData[p.id][ds] = code; }
-  function isEmpty(p, day){ return !getCode(p, day); }
-  function consecutiveStreakBefore(p, day){
-    let streak=0;
-    for(let d=day-1; d>=1; d--){ const c=getCode(p,d); if(isWorkCode(c)) streak++; else break; }
-    return streak;
-  }
-  function restIntervalOk(p, day, newCode){
-    const prev = day>1 ? getCode(p, day-1) : '';
-    if(SHIFT_TIME_RANGE[prev] && SHIFT_TIME_RANGE[newCode]){
-      if(((24+SHIFT_TIME_RANGE[newCode][0]) - SHIFT_TIME_RANGE[prev][1]) < minGap) return false;
-    }
-    const next = day<nDays ? getCode(p, day+1) : '';
-    if(SHIFT_TIME_RANGE[newCode] && SHIFT_TIME_RANGE[next]){
-      if(((24+SHIFT_TIME_RANGE[next][0]) - SHIFT_TIME_RANGE[newCode][1]) < minGap) return false;
-    }
-    return true;
-  }
-  function weekendForcesRest(p, day){
-    if(!p.weekendPref) return false;
-    const wd = new Date(monthCursor.getFullYear(), monthCursor.getMonth(), day).getDay();
-    return p.weekendPref==='w5' && (wd===0||wd===6);
-  }
-  function restCountSoFar(p){
-    let n=0;
-    for(let day=1; day<=nDays; day++){ if(!isEmpty(p,day) && isRestCode(getCode(p,day))) n++; }
-    return n;
-  }
-
-  // ---- Pass A: rotation-tracked pure-white staff get their fixed 2Di/3Di slot ----
-  const rotationStaff = items.filter(isPureWhiteRotationStaff);
-  const regulars = {};   // '2Di'/'3Di' -> staff (the person fixed to that floor this month)
-  const rotationFloaters = [];
-  rotationStaff.forEach(p=>{
-    const cat = rotationCategoryForMonth(p, monthCursor);
-    if(cat==='2Di' || cat==='3Di'){
-      if(!regulars[cat]) regulars[cat]=p;
-      else log.push(`${cat} 這個月有兩位以上同仁輪調起始設定衝突到同一格,已用「${regulars[cat].name}」,「${p.name}」需要你手動安排`);
-    } else if(cat==='float'){
-      rotationFloaters.push(p);
-    } else if(cat===null){
-      log.push(`${p.name} 有勾選三個月輪調,但輪調起始月份/班別尚未設定,這個人本月沒有被自動排班`);
-    }
+  const log = SchedulingCore.autoScheduleMonth({
+    items, monthData,
+    year: monthCursor.getFullYear(), month: monthCursor.getMonth(), nDays: daysInMonth(monthCursor),
+    maxConsec: parseInt(getRuleConfig('consecutive_days').param) || 5,
+    minGap: parseFloat(getRuleConfig('rest_interval').param) || 11,
+    defaultMonthlyRest: (calMin!==null && !isNaN(calMin)) ? calMin : (parseInt(getRuleConfig('monthly_rest_days').param) || 10),
+    leave: { isWorkCode, isRestCode },
   });
-
-  ['2Di','3Di'].forEach(cat=>{
-    const p = regulars[cat];
-    if(!p){ log.push(`本月沒有同仁固定輪到「${cat}」,如果沒有其他白班同仁可以補位,這個位置會需要你手動安排`); return; }
-    for(let day=1; day<=nDays; day++){
-      if(!isEmpty(p, day)) continue;
-      const streak = consecutiveStreakBefore(p, day);
-      const remainingDays = nDays - day + 1;
-      const remainingRestNeeded = Math.max(0, defaultMonthlyRest - restCountSoFar(p));
-      let shouldRest = false;
-      if(streak >= maxConsec) shouldRest = true;
-      else if(weekendForcesRest(p, day)) shouldRest = true;
-      else if(remainingRestNeeded >= remainingDays) shouldRest = true;
-      else if(remainingRestNeeded > 0 && streak>=2 && Math.random() < (remainingRestNeeded/remainingDays)) shouldRest = true;
-
-      if(shouldRest){ setCode(p, day, '休'); }
-      else if(restIntervalOk(p, day, cat)){ setCode(p, day, cat); }
-      else { setCode(p, day, '休'); }
-    }
-  });
-
-  // ---- Pass B: everyone else who can help cover 白班/小夜/大夜 gaps ----
-  // 修正重點1:補位池要排除兼職(partTime)同仁——兼職只能在自己固定到班星期上Dp/Ep,
-  // 不應該被自動排班拉去補正式的2Di/3Di/E/N,那樣會違反「兼職只能排固定到班星期」的硬性規則。
-  // 兼職同仁的班別完全交給使用者手動安排。
-  const floorFillPool = items.filter(p=> p.eligWhite && !p.partTime && p!==regulars['2Di'] && p!==regulars['3Di']);
-  const eveningPool = items.filter(p=> p.eligEvening && !p.partTime);
-  const nightPool = items.filter(p=> p.eligNight && !p.partTime);
-  const floorCount = {}, eCount = {}, nCount = {};
-  items.forEach(p=>{ floorCount[p.id]=0; eCount[p.id]=0; nCount[p.id]=0; });
-
-  for(let day=1; day<=nDays; day++){
-    // 白班樓層缺口(2Di / 3Di 當天沒有人covering)
-    ['2Di','3Di'].forEach(cat=>{
-      const covered = items.some(p=> getCode(p, day)===cat || getCode(p, day)===(cat==='2Di'?'2D8':'3D8'));
-      if(covered) return;
-      const candidates = floorFillPool.filter(p=> isEmpty(p, day) && consecutiveStreakBefore(p, day) < maxConsec && !weekendForcesRest(p, day) && restIntervalOk(p, day, cat));
-      candidates.sort((a,b)=> floorCount[a.id]-floorCount[b.id]);
-      if(candidates.length){ setCode(candidates[0], day, cat); floorCount[candidates[0].id]++; }
-      else log.push(`${monthCursor.getMonth()+1}/${day} 找不到人選可補 ${cat} 白班,需要你手動安排`);
-    });
-
-    // 小夜缺口
-    const dayHasE = items.some(p=> ['E','E8','Ep'].includes(getCode(p, day)));
-    if(!dayHasE){
-      const candidates = eveningPool.filter(p=> isEmpty(p, day) && consecutiveStreakBefore(p, day) < maxConsec && !weekendForcesRest(p, day) && restIntervalOk(p, day, 'E'));
-      candidates.sort((a,b)=> eCount[a.id]-eCount[b.id]);
-      if(candidates.length){ setCode(candidates[0], day, 'E'); eCount[candidates[0].id]++; }
-      else log.push(`${monthCursor.getMonth()+1}/${day} 找不到人選可排小夜(E),需要你手動安排`);
-    }
-
-    // 大夜缺口
-    const dayHasN = items.some(p=> ['N','E8'].includes(getCode(p, day)));
-    if(!dayHasN){
-      const candidates = nightPool.filter(p=> isEmpty(p, day) && consecutiveStreakBefore(p, day) < maxConsec && !weekendForcesRest(p, day) && restIntervalOk(p, day, 'N'));
-      candidates.sort((a,b)=> nCount[a.id]-nCount[b.id]);
-      if(candidates.length){ setCode(candidates[0], day, 'N'); nCount[candidates[0].id]++; }
-      else log.push(`${monthCursor.getMonth()+1}/${day} 找不到人選可排大夜(N),需要你手動安排`);
-    }
-  }
-
-  // ---- Pass C: 剩下還空著的格子 → 先休假湊到每月額度,滿了才排 Di(白班資格)或維持休假 ----
-  // 修正重點2:兼職同仁完全跳過這一段,格子維持空白讓使用者手動排Dp/Ep,
-  // 不會被自動塞休/Di。同時「每月休假天數」這條規則如果被設定成「僅全職適用」,
-  // 這裡也要跟健檢一致,不對兼職同仁套用休假額度邏輯(雖然兼職已經整批跳過,這裡仍保留判斷式以防未來調整)。
-  const monthlyRestTarget = getRuleConfig('monthly_rest_days').target;
-  items.forEach(p=>{
-    if(p.partTime) return; // 兼職完全不自動排,交給使用者手動排Dp/Ep
-    if(monthlyRestTarget==='fulltime' && p.partTime) return; // 保留判斷式,雙重保險
-    let restDays = restCountSoFar(p);
-    for(let day=1; day<=nDays; day++){
-      if(!isEmpty(p, day)) continue;
-      if(restDays < defaultMonthlyRest){ setCode(p, day, '休'); restDays++; }
-      else if(p.eligWhite){ setCode(p, day, 'Di'); }
-      else { setCode(p, day, '休'); restDays++; }
-    }
-  });
-
   await saveMonth();
   return log;
 }
@@ -3114,7 +3034,7 @@ document.getElementById('autoScheduleBtn').onclick = async ()=>{
     const extra = log.map(msg=>`
       <div class="hc-item hard">
         <span class="hc-badge">排不出來</span>
-        <div class="hc-body"><div class="hc-title">${msg}</div></div>
+        <div class="hc-body"><div class="hc-title">${escapeHtml(msg)}</div></div>
       </div>
     `).join('');
     panel.innerHTML = extra + panel.innerHTML;
@@ -3122,25 +3042,27 @@ document.getElementById('autoScheduleBtn').onclick = async ()=>{
 };
 
 
-const SHIFT_TIME_RANGE = {'Di':[8,16],'2Di':[8,16],'3Di':[8,16],'2D8':[8,20],'3D8':[8,20],'D8':[8,20],'E':[16,24],'E8':[20,32],'N':[24,32]};
-
-/* 純白班同仁的3個月輪調:2Di / 3Di / 貼班(白班) 循環 */
-const ROTATION_SEQUENCE = ['2Di','3Di','float'];
-function isPureWhiteRotationStaff(p){
-  return p.rotationTrack==='rotate' && p.eligWhite && !p.eligEvening && !p.eligNight && !p.partTime;
+function escapeHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
-function rotationCategoryForMonth(p, monthCursorDate){
-  if(!p.rotationStartMonth || !p.rotationStartShift) return null;
-  const [sy, sm] = p.rotationStartMonth.split('-').map(Number);
-  if(!sy || !sm) return null;
-  const startIdx = ROTATION_SEQUENCE.indexOf(p.rotationStartShift);
-  if(startIdx===-1) return null;
-  const monthsElapsed = (monthCursorDate.getFullYear()*12 + monthCursorDate.getMonth()) - (sy*12 + (sm-1));
-  if(monthsElapsed < 0) return null; // hasn't started yet
-  const stepsForward = Math.floor(monthsElapsed / 3);
-  const idx = (startIdx + stepsForward) % ROTATION_SEQUENCE.length;
-  return ROTATION_SEQUENCE[idx];
+// 健檢結果點擊/Enter:捲動到班表上對應的人與日期並閃爍提示
+function jumpToCell(spec){
+  const [sid, day] = spec.split('|');
+  const cell = document.querySelector(`#scheduleTable .shift-cell[data-staff="${CSS.escape(sid)}"][data-col="${parseInt(day,10)}"]`);
+  if(!cell){ showToast('找不到對應的格子(可能不在目前檢視的職務)'); return; }
+  cell.scrollIntoView({behavior:'smooth', block:'center', inline:'center'});
+  cell.classList.add('flash');
+  setTimeout(()=>cell.classList.remove('flash'), 2000);
 }
+document.addEventListener('click', e=>{
+  const it = e.target.closest && e.target.closest('.hc-item[data-jump]');
+  if(it) jumpToCell(it.dataset.jump);
+});
+document.addEventListener('keydown', e=>{
+  if(e.key!=='Enter' && e.key!==' ') return;
+  const it = e.target.closest && e.target.closest('.hc-item[data-jump]');
+  if(it){ e.preventDefault(); jumpToCell(it.dataset.jump); }
+});
 
 async function runHealthCheck(){
   const items = staff[currentRole];
@@ -3159,191 +3081,21 @@ async function runHealthCheck(){
     const cfg = getRuleConfig(key);
     if(cfg.enabled==='N') return;
     if(cfg.target==='fulltime' && staffObj && staffObj.partTime) return;
-    results.push({severity: cfg.type, ruleKey:key, title, staffName, dateLabel, suggestions: suggestionsFor(key)});
+    results.push({severity: cfg.type, ruleKey:key, title, staffName, dateLabel, staffId: staffObj ? staffObj.id : null, suggestions: suggestionsFor(key)});
   }
 
-  items.forEach(p=>{
-    const codes = [];
-    for(let day=1; day<=nDays; day++){
-      const ds = dateStr(monthCursor, day);
-      codes.push((monthData[p.id] && monthData[p.id][ds]) || '');
-    }
+  const calRow = orgCalendar[monthCursor.getMonth()];
+  const calMin = calRow && calRow.actualRest ? parseInt(calRow.actualRest) : null;
+  const params = {};
+  ['rest_interval','consecutive_days','biweekly_rest','four_week_rest_total','monthly_overtime_hours','monthly_rest_days']
+    .forEach(k=>{ params[k] = getRuleConfig(k).param; });
 
-    if(currentRole==='nursing'){
-      const whiteCodes=['Di','2Di','3Di','D8','2D8','3D8','Dp'], eveningCodes=['E','Ep'], nightCodes=['N','E8'];
-      codes.forEach((v, idx)=>{
-        if(!v) return;
-        const day = idx+1, label = `${monthCursor.getMonth()+1}/${day}`;
-        if(whiteCodes.includes(v) && !p.eligWhite) addResult('eligibility', `${v} 需要白班資格,但該同仁未勾選白班`, p.name, label, p);
-        if(eveningCodes.includes(v) && !p.eligEvening) addResult('eligibility', `${v} 需要小夜資格,但該同仁未勾選小夜`, p.name, label, p);
-        if(nightCodes.includes(v) && !p.eligNight) addResult('eligibility', `${v} 需要大夜資格,但該同仁未勾選大夜`, p.name, label, p);
-      });
-      if(p.partTime){
-        codes.forEach((v, idx)=>{
-          const day = idx+1;
-          const d = new Date(monthCursor.getFullYear(), monthCursor.getMonth(), day);
-          const wd = d.getDay();
-          if((v==='Dp'||v==='Ep') && !(p.partTimeDays||[]).includes(wd)){
-            addResult('parttime_days', `${v} 排在非固定到班星期(週${WD[wd]})`, p.name, `${monthCursor.getMonth()+1}/${day}`, p);
-          }
-        });
-      }
-    }
-
-    const minGap = parseFloat(getRuleConfig('rest_interval').param) || 12;
-    for(let day=1; day<nDays; day++){
-      const v1 = codes[day-1], v2 = codes[day];
-      if(!SHIFT_TIME_RANGE[v1] || !SHIFT_TIME_RANGE[v2]) continue;
-      const end1 = SHIFT_TIME_RANGE[v1][1];
-      const start2 = 24 + SHIFT_TIME_RANGE[v2][0];
-      const gap = start2 - end1;
-      if(gap < minGap){
-        addResult('rest_interval', `${v1}(${monthCursor.getMonth()+1}/${day}) 接 ${v2}(${monthCursor.getMonth()+1}/${day+1}),休息僅 ${gap} 小時`, p.name, `${monthCursor.getMonth()+1}/${day}-${day+1}`, p);
-      }
-    }
-
-    const maxConsec = parseInt(getRuleConfig('consecutive_days').param) || 5;
-    let streak = 0, streakStart = null;
-    for(let day=1; day<=nDays; day++){
-      const v = codes[day-1];
-      if(isWorkCode(v)){
-        if(streak===0) streakStart = day;
-        streak++;
-      } else {
-        if(streak > maxConsec) addResult('consecutive_days', `連續上班 ${streak} 天(超過上限 ${maxConsec} 天)`, p.name, `${monthCursor.getMonth()+1}/${streakStart}-${day-1}`, p);
-        streak = 0;
-      }
-    }
-    if(streak > maxConsec) addResult('consecutive_days', `連續上班 ${streak} 天(超過上限 ${maxConsec} 天)`, p.name, `${monthCursor.getMonth()+1}/${streakStart}-${nDays}`, p);
-
-    const minBiweekly = parseInt(getRuleConfig('biweekly_rest').param) || 2;
-    for(let start=1; start+13<=nDays; start++){
-      let restCount = 0;
-      for(let day=start; day<start+14; day++){ if(isRestCode(codes[day-1])) restCount++; }
-      if(restCount < minBiweekly){
-        addResult('biweekly_rest', `${monthCursor.getMonth()+1}/${start}-${start+13} 這14天內只有 ${restCount} 個例假(至少需要${minBiweekly}個)`, p.name, `${monthCursor.getMonth()+1}/${start}-${start+13}`, p);
-        break;
-      }
-    }
-
-    const minFourWeek = parseInt(getRuleConfig('four_week_rest_total').param) || 8;
-    for(let start=1; start+27<=nDays; start++){
-      let restCount = 0;
-      for(let day=start; day<start+28; day++){ if(isRestCode(codes[day-1])) restCount++; }
-      if(restCount < minFourWeek){
-        addResult('four_week_rest_total', `${monthCursor.getMonth()+1}/${start}-${start+27} 這4週(28天)內只有 ${restCount} 天休假(例假+休息日,至少需要${minFourWeek}天)`, p.name, `${monthCursor.getMonth()+1}/${start}-${start+27}`, p);
-        break;
-      }
-    }
-
-    const maxOvertime = parseInt(getRuleConfig('monthly_overtime_hours').param) || 46;
-    let totalWorkHours = 0;
-    codes.forEach(v=>{
-      if(SHIFT_TIME_RANGE[v]){ totalWorkHours += (SHIFT_TIME_RANGE[v][1]-SHIFT_TIME_RANGE[v][0]); }
-    });
-    const restDaysForOvertimeCalc = codes.filter(v=>isRestCode(v)).length;
-    const normalBaselineHours = (nDays - restDaysForOvertimeCalc) * 8;
-    const estOvertime = Math.max(0, totalWorkHours - normalBaselineHours);
-    if(estOvertime > maxOvertime){
-      addResult('monthly_overtime_hours', `本月估計工時 ${totalWorkHours} 小時,推估加班約 ${estOvertime} 小時,超過上限 ${maxOvertime} 小時(此為概估,Dp/Ep兼職時數未固定不計入)`, p.name, `本月`, p);
-    }
-
-    const calRow = orgCalendar[monthCursor.getMonth()];
-    const calMinFromCalendar = calRow && calRow.actualRest ? parseInt(calRow.actualRest) : null;
-    const minMonthly = (calMinFromCalendar!==null && !isNaN(calMinFromCalendar)) ? calMinFromCalendar : (parseInt(getRuleConfig('monthly_rest_days').param) || 10);
-    const restTotal = codes.filter(v=>isRestCode(v)).length;
-    if(restTotal < minMonthly){
-      const source = calMinFromCalendar!==null ? '(依年度行事曆機構實休天數)' : '(依排班規則設定的參數)';
-      addResult('monthly_rest_days', `本月休假天數 ${restTotal} 天,少於門檻 ${minMonthly} 天 ${source}`, p.name, `本月`, p);
-    }
-
-    if(currentRole==='nursing' && p.weekendPref){
-      const weekends = [];
-      for(let day=1; day<=nDays; day++){
-        const wd = new Date(monthCursor.getFullYear(), monthCursor.getMonth(), day).getDay();
-        if(wd===6){
-          // 星期六一定配對「隔天」的星期日,這樣才會是同一個週末
-          const sunDay = day+1;
-          const sunRest = sunDay<=nDays ? isRestCode(codes[sunDay-1]) : null;
-          weekends.push({sat: isRestCode(codes[day-1]), sun: sunRest});
-        } else if(wd===0 && day===1){
-          // 當月第一天就是星期日,這個月沒有對應的星期六,單獨算一個週末
-          weekends.push({sat: null, sun: isRestCode(codes[day-1])});
-        }
-      }
-      // 全月每日是否休假(給 w3/w4 判斷連休用)
-      const restOn = {};
-      for(let day=1; day<=nDays; day++) restOn[day] = isRestCode(codes[day-1]);
-      // 完整六日連休(六、日都休)的週末數,給 w2 用
-      const fullRestWeekends = weekends.filter(w=> w.sat===true && w.sun===true).length;
-
-      if(p.weekendPref==='w1' && weekends.some(w=> !(w.sat||w.sun)))
-        addResult('weekend_pref', `週末需求「六日至少休一天」未被滿足`, p.name, `本月`, p);
-
-      if(p.weekendPref==='w5' && weekends.some(w=> w.sat===false || w.sun===false))
-        addResult('weekend_pref', `週末需求「六日都休息」未被滿足`, p.name, `本月`, p);
-
-      if(p.weekendPref==='w2'){
-        if(fullRestWeekends===0)
-          addResult('weekend_pref', `週末需求「每月至少一次六日連休」未被滿足(本月沒有任何一個完整的六日連休)`, p.name, `本月`, p);
-        else if(fullRestWeekends>=2)
-          addResult('weekend_pref', `週末需求「其餘週末至少上一天」未被滿足(本月有 ${fullRestWeekends} 個週末六日皆休,超過希望的一次)`, p.name, `本月`, p);
-      }
-
-      if(p.weekendPref==='w3'){
-        // 找出「孤立單日休假」:當天休假,但前一天與後一天都不是休假
-        const isolated = [];
-        for(let day=1; day<=nDays; day++){
-          if(!restOn[day]) continue;
-          const prevRest = day>1 && restOn[day-1];
-          const nextRest = day<nDays && restOn[day+1];
-          if(!prevRest && !nextRest) isolated.push(day);
-        }
-        if(isolated.length)
-          addResult('weekend_pref', `休假偏好「希望兩日連休」未被滿足(有 ${isolated.length} 天單日休假沒有連著另一天:${isolated.map(d=>d+'號').join('、')})`, p.name, `本月`, p);
-      }
-
-      if(p.weekendPref==='w4'){
-        // 找出「連續兩天(含)以上的休假」
-        const runs = [];
-        let start=null;
-        for(let day=1; day<=nDays+1; day++){
-          const r = (day<=nDays) && restOn[day];
-          if(r && start===null) start=day;
-          else if(!r && start!==null){ if((day-1) - start >= 1) runs.push([start, day-1]); start=null; }
-        }
-        if(runs.length)
-          addResult('weekend_pref', `休假偏好「不要安排連休」未被滿足(有連續休假:${runs.map(r=>r[0]+'–'+r[1]+'號').join('、')})`, p.name, `本月`, p);
-      }
-    }
-
-    if(leaveReq[p.id]!==undefined){
-      const reqEntry = leaveReq[p.id];
-      const specialCountForReq = codes.filter(v=>isSpecialLeaveCode(v)).length;
-      const compCountForReq = codes.filter(v=>isCompLeaveCode(v)).length;
-      const reqSpecial = leaveReqAmount(reqEntry, 'special');
-      const reqComp = leaveReqAmount(reqEntry, 'comp');
-      if(reqSpecial!==undefined && reqSpecial!==null && specialCountForReq < reqSpecial){
-        addResult('leave_request_fulfillment', `登記的特休需求 ${reqSpecial} 天,目前只排了 ${specialCountForReq} 天特休`, p.name, `本月`, p);
-      }
-      if(reqComp!==undefined && reqComp!==null && compCountForReq < reqComp){
-        addResult('leave_request_fulfillment', `登記的補休需求 ${reqComp} 天,目前只排了 ${compCountForReq} 天補休`, p.name, `本月`, p);
-      }
-    }
-  });
-
-  if(currentRole==='nursing'){
-    for(let day=1; day<=nDays; day++){
-      const ds = dateStr(monthCursor, day);
-      const count2Di = items.filter(p=> monthData[p.id] && ['2Di','2D8'].includes(monthData[p.id][ds])).length;
-      const count3Di = items.filter(p=> monthData[p.id] && ['3Di','3D8'].includes(monthData[p.id][ds])).length;
-      const countE = items.filter(p=> monthData[p.id] && ['E','E8','Ep'].includes(monthData[p.id][ds])).length;
-      const label = `${monthCursor.getMonth()+1}/${day}`;
-      if(count2Di===0) addResult('staffing_min', `2樓白班(2Di)當天無人力`, '—', label);
-      if(count3Di===0) addResult('staffing_min', `3樓白班(3Di)當天無人力`, '—', label);
-      if(countE===0) addResult('staffing_min', `小夜班當天無人力`, '—', label);
-    }
-  }
+  SchedulingCore.checkSchedule({
+    items, monthData, nDays, leaveReq, params, leaveReqAmount,
+    year: monthCursor.getFullYear(), month: monthCursor.getMonth(),
+    isNursing: currentRole==='nursing', weekdayNames: WD, calendarMinRest: calMin,
+    leave: { isWorkCode, isRestCode, isSpecialLeaveCode, isCompLeaveCode },
+  }, addResult);
 
   return results;
 }
@@ -3357,18 +3109,29 @@ async function performHealthCheck(){
   panel.style.display = 'block';
   const hardCount = results.filter(r=>r.severity==='hard').length;
   const softCount = results.filter(r=>r.severity==='soft').length;
-  document.getElementById('healthCheckSummary').textContent =
-    results.length===0 ? '沒有發現問題,目前排班狀況良好!' : `共發現 ${results.length} 個項目:${hardCount} 個不可違反、${softCount} 個建議調整。`;
+  document.getElementById('healthCheckSummary').innerHTML = results.length===0
+    ? '<div class="hc-summary"><div class="hc-stat ok"><span class="hc-count">0</span><span class="hc-label">沒有發現問題,目前排班狀況良好</span></div></div>'
+    : `<div class="hc-summary">
+         <div class="hc-stat hard"><span class="hc-count">${hardCount}</span><span class="hc-label">不可違反</span></div>
+         <div class="hc-stat soft"><span class="hc-count">${softCount}</span><span class="hc-label">建議調整</span></div>
+       </div>
+       <div class="hint" style="margin-top:0;">點任一項可跳到班表上對應的格子。</div>`;
   const container = document.getElementById('healthCheckResults');
-  container.innerHTML = results.length===0 ? '' : results.map(r=>`
-    <div class="hc-item ${r.severity}">
+  const itemHtml = r=>{
+    const jump = (r.staffId && /^\d+\/\d+/.test(r.dateLabel||'')) ? ` data-jump="${escapeHtml(r.staffId)}|${parseInt(r.dateLabel.split('/')[1],10)}" tabindex="0" role="button"` : '';
+    return `
+    <div class="hc-item ${r.severity}"${jump}>
       <span class="hc-badge">${r.severity==='hard'?'不可違反':'建議調整'}</span>
       <div class="hc-body">
-        <div class="hc-title">${r.dateLabel} － ${r.staffName} － ${r.title}</div>
-        ${r.suggestions.length ? `<div class="hc-suggest">💡 建議:${r.suggestions.join('；')}</div>` : ''}
+        <div class="hc-title">${escapeHtml(r.title)}</div>
+        <div class="hc-meta">${escapeHtml(r.dateLabel)} · ${escapeHtml(r.staffName)}</div>
+        ${r.suggestions.length ? `<div class="hc-suggest">建議:${r.suggestions.map(escapeHtml).join('；')}</div>` : ''}
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  };
+  const hard = results.filter(r=>r.severity==='hard'), soft = results.filter(r=>r.severity==='soft');
+  container.innerHTML = (hard.length ? `<div class="hc-group-title">不可違反 · ${hard.length}</div>${hard.map(itemHtml).join('')}` : '')
+    + (soft.length ? `<div class="hc-group-title">建議調整 · ${soft.length}</div>${soft.map(itemHtml).join('')}` : '');
   panel.scrollIntoView({behavior:'smooth', block:'nearest'});
   showToast(results.length===0 ? '健檢完成,沒有發現問題' : `健檢完成,發現 ${results.length} 個項目`);
   return results;

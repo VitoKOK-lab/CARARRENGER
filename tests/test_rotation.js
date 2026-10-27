@@ -1,17 +1,4 @@
-// ---- 把系統中的實作複製過來(之後要跟正式檔案同步) ----
-const ROTATION_SEQUENCE = ['2Di','3Di','float'];
-function rotationCategoryForMonth(p, monthCursorDate){
-  if(!p.rotationStartMonth || !p.rotationStartShift) return null;
-  const [sy, sm] = p.rotationStartMonth.split('-').map(Number);
-  if(!sy || !sm) return null;
-  const startIdx = ROTATION_SEQUENCE.indexOf(p.rotationStartShift);
-  if(startIdx===-1) return null;
-  const monthsElapsed = (monthCursorDate.getFullYear()*12 + monthCursorDate.getMonth()) - (sy*12 + (sm-1));
-  if(monthsElapsed < 0) return null;
-  const stepsForward = Math.floor(monthsElapsed / 3);
-  const idx = (startIdx + stepsForward) % ROTATION_SEQUENCE.length;
-  return ROTATION_SEQUENCE[idx];
-}
+const { rotationCategoryForMonth } = require('../public/scheduling-core.js');
 
 // ---- 小型測試跑器 ----
 let pass = 0, fail = 0;

@@ -1,11 +1,4 @@
-// ---- 從系統複製過來的實作 ----
-const SHIFT_TIME_RANGE = {'Di':[8,16],'2Di':[8,16],'3Di':[8,16],'2D8':[8,20],'3D8':[8,20],'D8':[8,20],'E':[16,24],'E8':[20,32],'N':[24,32]};
-function gapHours(prevCode, nextCode){
-  if(!SHIFT_TIME_RANGE[prevCode] || !SHIFT_TIME_RANGE[nextCode]) return null;
-  const end1 = SHIFT_TIME_RANGE[prevCode][1];
-  const start2 = 24 + SHIFT_TIME_RANGE[nextCode][0];
-  return start2 - end1;
-}
+const { gapHours } = require('../public/scheduling-core.js');
 
 let pass=0, fail=0;
 function test(name, actual, expected){

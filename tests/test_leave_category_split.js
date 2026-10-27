@@ -4,16 +4,12 @@
 // 修正:自訂代碼可以在後台標記「計入休假統計」為 不算/算特休/算一般休假,
 // 系統依這個標記分別加總。
 
-function customLeaveCategory(v, customShiftCodes){
-  const c = customShiftCodes.find(c=>c.code===v);
-  return c ? (c.leaveCategory || '') : '';
-}
-function isSpecialLeaveCode(v, customShiftCodes){
-  return customLeaveCategory(v, customShiftCodes)==='special';
-}
-function isRegularLeaveCodeOnly(v, customShiftCodes){
-  return v==='休' || v==='R1' || v==='R2' || v==='R' || customLeaveCategory(v, customShiftCodes)==='regular';
-}
+const { makeLeaveHelpers } = require('../public/scheduling-core.js');
+// 測試用的包裝:沿用 (代碼, 自訂代碼清單) 的呼叫方式,實際邏輯來自正式的 scheduling-core.js
+function helpers(customShiftCodes){ return makeLeaveHelpers(()=>customShiftCodes); }
+function customLeaveCategory(v, codes){ return helpers(codes).customLeaveCategory(v); }
+function isSpecialLeaveCode(v, codes){ return helpers(codes).isSpecialLeaveCode(v); }
+function isRegularLeaveCodeOnly(v, codes){ return helpers(codes).isRegularLeaveCodeOnly(v); }
 
 let pass=0, fail=0;
 function test(name, cond){
