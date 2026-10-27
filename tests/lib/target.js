@@ -24,7 +24,7 @@ function makeD1(file) {
   return { prepare: (sql) => stmt(sql), _db: db };
 }
 
-async function start() {
+async function start(opts = {}) {
   if (!isWorker) {
     const app = require('../../server/index');
     const server = app.listen(0);
@@ -36,6 +36,9 @@ async function start() {
     DB: makeD1(process.env.DB_PATH),
     JWT_SECRET: process.env.JWT_SECRET,
     SETUP_TOKEN: process.env.SETUP_TOKEN || '',
+    // 測試用:沒設 SETUP_TOKEN 時開放建立管理者(正式環境不會設這個)
+    ALLOW_OPEN_SETUP: process.env.SETUP_TOKEN ? undefined : '1',
+    ...(opts.env || {}),
     ASSETS: { fetch: async () => new Response('<!doctype html>', { headers: { 'content-type': 'text/html' } }) },
   };
   const server = http.createServer(async (req, res) => {

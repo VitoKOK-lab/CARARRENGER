@@ -24,7 +24,7 @@ npx wrangler secret put JWT_SECRET      # 貼上剛剛的隨機金鑰
 npx wrangler secret put SETUP_TOKEN     # 自訂一組口令,建立第一個管理者時要輸入(強烈建議)
 npx wrangler deploy
 ```
-**順序很重要**:先設好 `SETUP_TOKEN` 再部署。沒設的話,部署完到你建立管理者之前,任何知道網址的人都能搶先建立。
+**沒設 `SETUP_TOKEN` 時,Workers 版會拒絕建立第一個管理者(503)**,所以不會有被搶先建立的空窗;設好之後才能建立。
 
 部署完開網址,用 `SETUP_TOKEN` 建立第一個管理者並記下救援碼。
 

@@ -172,6 +172,12 @@ async function handleApi(request, env, url) {
     }
     if (action === 'setup' && method === 'POST') {
       if ((await store.count()) > 0) return json({ error: '系統已經有帳號了，請直接登入' }, 409);
+      // 公開網址上,沒設 SETUP_TOKEN 就拒絕建立第一個管理者(否則任何知道網址的人都能搶先建立)。
+      // ALLOW_OPEN_SETUP=1 只給測試用,正式環境不要設。
+      if (!env.SETUP_TOKEN && env.ALLOW_OPEN_SETUP !== '1') {
+        return json({ error: '尚未設定 SETUP_TOKEN,為了安全暫不開放建立管理者。請先在 Cloudflare 設定 SETUP_TOKEN 這個 Secret。' }, 503);
+      }
+      requireSecret(env); // 先確認 JWT_SECRET 已設定,避免帳號建立後才因簽發 token 失敗
       const keys = limiterSet(env, request, '__setup__');
       await assertNotBlocked(keys);
       const { username, password, setupToken } = await readJson(request, MAX_BODY_API);

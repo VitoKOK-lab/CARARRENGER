@@ -175,6 +175,21 @@ async function check(name, fn){
     assert.strictEqual(r.status, 413);
   });
 
+  if (target.isWorker) {
+    await check('Workers 版:沒設 SETUP_TOKEN 時拒絕建立第一個管理者(503),不會被搶先建立', async () => {
+      const tmp2 = require('path').join(require('os').tmpdir(), 'sched-sec2-' + Date.now() + '.db');
+      const saved = process.env.DB_PATH; process.env.DB_PATH = tmp2;
+      const t2 = await target.start({ env: { SETUP_TOKEN: '', ALLOW_OPEN_SETUP: undefined } });
+      process.env.DB_PATH = saved;
+      const r = await fetch(t2.base + '/api/auth/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'x', password: 'longenough1' }) });
+      assert.strictEqual(r.status, 503);
+      const st = await (await fetch(t2.base + '/api/auth/status')).json();
+      assert.strictEqual(st.needsSetup, true, '被拒絕後系統仍應是尚未建立任何帳號');
+      t2.close();
+      for (const suf of ['', '-wal', '-shm']) { try { fs.unlinkSync(tmp2 + suf); } catch(e){} }
+    });
+  }
+
   // ---- 限流(放最後,會把這個 IP 鎖住) ----
   await check('登入連續失敗 8 次後,第 9 次回 429(連正確密碼也會被擋)並帶 Retry-After', async () => {
     for (let i = 0; i < 8; i++) {
