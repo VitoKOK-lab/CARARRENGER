@@ -9,6 +9,7 @@ RUN npm install --omit=dev
 
 # 複製其餘程式
 COPY server ./server
+COPY shared ./shared
 COPY public ./public
 
 # 資料庫檔案放在 /app/data,建議用 volume 掛出來以免容器刪掉後資料不見

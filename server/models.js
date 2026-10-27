@@ -4,6 +4,7 @@
  */
 const crypto = require('crypto');
 const db = require('./db');
+const { makeRecoveryCode, normalizeRecovery } = require('../shared/policy');
 const { hashPassword, verifyPassword, DUMMY_HASH } = require('./auth');
 
 function nowIso() {
@@ -15,17 +16,8 @@ function genId() {
   return 'u' + Date.now().toString(36) + crypto.randomBytes(5).toString('hex');
 }
 
-// 忘記密碼救援碼：XXXX-XXXX-XXXX-XXXX（去掉易混淆字元的英數大寫,約 80 bit），只顯示一次，資料庫裡存 bcrypt 雜湊。
-// 用密碼學安全亂數(crypto.randomInt),不可用 Math.random。
-const RECOVERY_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // 無 I L O 0 1
-function genRecoveryCode() {
-  const seg = () => Array.from({ length: 4 }, () => RECOVERY_ALPHABET[crypto.randomInt(RECOVERY_ALPHABET.length)]).join('');
-  return `${seg()}-${seg()}-${seg()}-${seg()}`;
-}
-
-function normalizeRecovery(code) {
-  return String(code || '').trim().toUpperCase();
-}
+// 忘記密碼救援碼:格式與字元集見 shared/policy.js;必須用密碼學安全亂數(crypto.randomInt),不可用 Math.random。
+function genRecoveryCode() { return makeRecoveryCode((n) => crypto.randomInt(n)); }
 
 // 把資料庫的一列使用者轉成前端物件（永遠不含密碼雜湊）
 function toPublicUser(row) {

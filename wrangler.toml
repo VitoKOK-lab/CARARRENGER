@@ -1,0 +1,21 @@
+# Cloudflare Workers + D1 部署設定。完整步驟見 docs/cloudflare.md
+name = "cararrenger"
+main = "worker/src/entry.js"
+compatibility_date = "2025-09-01"
+
+# 靜態網頁(public/)由 Workers Static Assets 提供;run_worker_first 讓 API 與安全標頭都先經過 Worker
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "linedong-scheduling"
+database_id = "請換成 wrangler d1 create 印出的 database_id"
+migrations_dir = "worker/migrations"
+
+[vars]
+# 登入有效秒數(預設 7 天)。JWT_SECRET 與 SETUP_TOKEN 是機密,請用 wrangler secret put 設定,不要寫在這裡
+JWT_EXPIRES_IN = "604800"

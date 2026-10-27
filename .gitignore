@@ -7,3 +7,7 @@ data/
 .env
 .DS_Store
 npm-debug.log*
+
+# Cloudflare / wrangler 本機檔
+.wrangler/
+.dev.vars

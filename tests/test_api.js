@@ -19,7 +19,7 @@ process.env.PORT = '0'; // 讓系統自動配一個空閒的埠
 process.env.NODE_ENV = 'test';
 process.env.BCRYPT_ROUNDS = '4'; // 測試用,加快雜湊速度
 
-const app = require('../server/index');
+const target = require('./lib/target');
 
 let pass = 0, fail = 0;
 async function check(name, fn){
@@ -29,9 +29,8 @@ async function check(name, fn){
 
 (async function run(){
   // 啟動伺服器,取得實際埠號
-  const server = app.listen(0);
-  await new Promise(r => server.once('listening', r));
-  const base = 'http://127.0.0.1:' + server.address().port;
+  const running = await target.start();
+  const base = running.base;
 
   const req = async (method, url, { token, body } = {}) => {
     const headers = { 'Content-Type': 'application/json' };
@@ -197,7 +196,7 @@ async function check(name, fn){
     assert.strictEqual(r.status, 403);
   });
 
-  server.close();
+  running.close();
   try { fs.unlinkSync(tmpDb); } catch(e){}
   try { fs.unlinkSync(tmpDb + '-wal'); } catch(e){}
   try { fs.unlinkSync(tmpDb + '-shm'); } catch(e){}
