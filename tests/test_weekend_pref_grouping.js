@@ -2,49 +2,23 @@
 // 問題:原本用 Math.ceil((day + firstWd) / 7) 幫星期六/日分組,
 // 在某些月份起始星期下,會把同一個週末的六跟日拆到不同組別,導致誤判「六日都沒休」。
 // 修正:改成「星期六一定跟隔天的星期日配對」,不再用公式硬算分組。
+// 直接測正式的 checkSchedule(public/scheduling-core.js)。
 
-function isRestCode(v){ return v==='休' || v==='R1' || v==='R2' || v==='R'; }
+const { checkSchedule, makeLeaveHelpers, dateKey } = require('../public/scheduling-core.js');
 
-// 模擬某個月的星期對照(day1 = 星期二,對照使用者實際回報問題的那個月)
-function getWeekday(day){
-  const map = [2,3,4,5,6,0,1]; // 0=Sun...6=Sat, day1對應星期二(2)
-  return map[(day-1)%7];
-}
-
+// 2026-09:1號是星期二(對照使用者實際回報問題的月份起始星期)
+// 回傳 true = 該週末/休假偏好被滿足(健檢沒有產生 weekend_pref 問題)
 function checkWeekendPref(codes, nDays, prefType){
-  const weekends = [];
-  for(let day=1; day<=nDays; day++){
-    const wd = getWeekday(day);
-    if(wd===6){
-      const sunDay = day+1;
-      const sunRest = sunDay<=nDays ? isRestCode(codes[sunDay-1]) : null;
-      weekends.push({sat: isRestCode(codes[day-1]), sun: sunRest});
-    } else if(wd===0 && day===1){
-      weekends.push({sat: null, sun: isRestCode(codes[day-1])});
-    }
-  }
-  // 全月每日是否休假(w3/w4 用)
-  const restOn = {};
-  for(let day=1; day<=nDays; day++) restOn[day] = isRestCode(codes[day-1]);
-  const fullRestWeekends = weekends.filter(w=> w.sat===true && w.sun===true).length;
-
-  if(prefType==='w1') return !weekends.some(w=> !(w.sat||w.sun)); // true = 有滿足
-  if(prefType==='w5') return !weekends.some(w=> w.sat===false || w.sun===false);
-  if(prefType==='w2') return fullRestWeekends===1; // 恰好一次六日連休(0=沒連休,>=2=其餘沒上班)
-  if(prefType==='w3'){ // 希望兩日連休:不能有孤立單日休假
-    for(let day=1; day<=nDays; day++){
-      if(!restOn[day]) continue;
-      const prevRest = day>1 && restOn[day-1];
-      const nextRest = day<nDays && restOn[day+1];
-      if(!prevRest && !nextRest) return false;
-    }
-    return true;
-  }
-  if(prefType==='w4'){ // 不要連休:不能有連續兩天休假
-    for(let day=1; day<nDays; day++){ if(restOn[day] && restOn[day+1]) return false; }
-    return true;
-  }
-  return null;
+  const year = 2026, month = 8;
+  const p = {id:'P', name:'測試', weekendPref: prefType};
+  const monthData = {P:{}};
+  codes.slice(0, nDays).forEach((c, i)=>{ if(c) monthData.P[dateKey(year, month, i+1)] = c; });
+  const findings = [];
+  checkSchedule({
+    items:[p], monthData, year, month, nDays, isNursing:true, leaveReq:{}, leaveReqAmount:()=>undefined, weekdayNames:[],
+    params:{}, calendarMinRest:0, leave: makeLeaveHelpers(()=>[]),
+  }, (key)=>{ if(key==='weekend_pref') findings.push(key); });
+  return findings.length===0;
 }
 
 let pass=0, fail=0;
@@ -55,7 +29,7 @@ function test(name, cond){
 
 // ---- 案例1:使用者實際回報的情境(劉婷貞,8月,1號=星期二) ----
 // 每個週末六或日至少有一天是R(休假),理論上應該「滿足」w1需求
-const codes1 = ['R','3Di','3Di','3Di','3Di','R','3Di','3Di','R','3Di','3Di','3Di','R','3Di','3Di','R','3Di','3Di','3Di','R','3Di','3Di','R','3Di','3Di','R','3Di','3Di','R','R'];
+const codes1 = ['R1','3Di','3Di','3Di','3Di','R1','3Di','3Di','R1','3Di','3Di','3Di','R1','3Di','3Di','R1','3Di','3Di','3Di','R1','3Di','3Di','R1','3Di','3Di','R1','3Di','3Di','R1','R1'];
 test('案例1:六日至少休一天,實際上每週末都有休,應判定為「滿足」', checkWeekendPref(codes1, codes1.length, 'w1'));
 
 // ---- 案例2:真的沒有滿足的情況,應該要抓出來(不能改過頭變成都不檢查) ----

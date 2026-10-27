@@ -256,10 +256,232 @@
     return st.log;
   }
 
+  /* ---------- 排班健檢(純函式) ----------
+   * 每條規則一個 check_xxx(p, codes, c, add) 函式;add(ruleKey, title, staffName, dateLabel, staffObj) 由呼叫端提供
+   * (呼叫端負責依規則啟用/適用對象過濾、附上建議)。c: 見 checkSchedule 的 ctx。
+   */
+  function check_eligibility(p, codes, c, add) {
+    const { nDays, params, leave, leaveReq } = c; const mon = c.month + 1;
+    if(c.isNursing){
+      const whiteCodes=['Di','2Di','3Di','D8','2D8','3D8','Dp'], eveningCodes=['E','Ep'], nightCodes=['N','E8'];
+      codes.forEach((v, idx)=>{
+        if(!v) return;
+        const day = idx+1, label = `${mon}/${day}`;
+        if(whiteCodes.includes(v) && !p.eligWhite) add('eligibility', `${v} 需要白班資格,但該同仁未勾選白班`, p.name, label, p);
+        if(eveningCodes.includes(v) && !p.eligEvening) add('eligibility', `${v} 需要小夜資格,但該同仁未勾選小夜`, p.name, label, p);
+        if(nightCodes.includes(v) && !p.eligNight) add('eligibility', `${v} 需要大夜資格,但該同仁未勾選大夜`, p.name, label, p);
+      });
+      if(p.partTime){
+        codes.forEach((v, idx)=>{
+          const day = idx+1;
+          const d = new Date(c.year, c.month, day);
+          const wd = d.getDay();
+          if((v==='Dp'||v==='Ep') && !(p.partTimeDays||[]).includes(wd)){
+            add('parttime_days', `${v} 排在非固定到班星期(週${c.weekdayNames[wd]})`, p.name, `${mon}/${day}`, p);
+          }
+        });
+      }
+    }
+  }
+
+  function check_restInterval(p, codes, c, add) {
+    const { nDays, params, leave, leaveReq } = c; const mon = c.month + 1;
+    const minGap = parseFloat(params.rest_interval) || 12;
+    for(let day=1; day<nDays; day++){
+      const v1 = codes[day-1], v2 = codes[day];
+      const gap = gapHours(v1, v2);
+      if(gap!==null && gap < minGap){
+        add('rest_interval', `${v1}(${mon}/${day}) 接 ${v2}(${mon}/${day+1}),休息僅 ${gap} 小時`, p.name, `${mon}/${day}-${day+1}`, p);
+      }
+    }
+  }
+
+  function check_consecutive(p, codes, c, add) {
+    const { nDays, params, leave, leaveReq } = c; const mon = c.month + 1;
+    const maxConsec = parseInt(params.consecutive_days) || 5;
+    let streak = 0, streakStart = null;
+    for(let day=1; day<=nDays; day++){
+      const v = codes[day-1];
+      if(leave.isWorkCode(v)){
+        if(streak===0) streakStart = day;
+        streak++;
+      } else {
+        if(streak > maxConsec) add('consecutive_days', `連續上班 ${streak} 天(超過上限 ${maxConsec} 天)`, p.name, `${mon}/${streakStart}-${day-1}`, p);
+        streak = 0;
+      }
+    }
+    if(streak > maxConsec) add('consecutive_days', `連續上班 ${streak} 天(超過上限 ${maxConsec} 天)`, p.name, `${mon}/${streakStart}-${nDays}`, p);
+  }
+
+  function check_biweekly(p, codes, c, add) {
+    const { nDays, params, leave, leaveReq } = c; const mon = c.month + 1;
+    const minBiweekly = parseInt(params.biweekly_rest) || 2;
+    for(let start=1; start+13<=nDays; start++){
+      let restCount = 0;
+      for(let day=start; day<start+14; day++){ if(leave.isRestCode(codes[day-1])) restCount++; }
+      if(restCount < minBiweekly){
+        add('biweekly_rest', `${mon}/${start}-${start+13} 這14天內只有 ${restCount} 個例假(至少需要${minBiweekly}個)`, p.name, `${mon}/${start}-${start+13}`, p);
+        break;
+      }
+    }
+  }
+
+  function check_fourWeek(p, codes, c, add) {
+    const { nDays, params, leave, leaveReq } = c; const mon = c.month + 1;
+    const minFourWeek = parseInt(params.four_week_rest_total) || 8;
+    for(let start=1; start+27<=nDays; start++){
+      let restCount = 0;
+      for(let day=start; day<start+28; day++){ if(leave.isRestCode(codes[day-1])) restCount++; }
+      if(restCount < minFourWeek){
+        add('four_week_rest_total', `${mon}/${start}-${start+27} 這4週(28天)內只有 ${restCount} 天休假(例假+休息日,至少需要${minFourWeek}天)`, p.name, `${mon}/${start}-${start+27}`, p);
+        break;
+      }
+    }
+  }
+
+  function check_overtime(p, codes, c, add) {
+    const { nDays, params, leave, leaveReq } = c; const mon = c.month + 1;
+    const maxOvertime = parseInt(params.monthly_overtime_hours) || 46;
+    let totalWorkHours = 0;
+    codes.forEach(v=>{
+      if(SHIFT_TIME_RANGE[v]){ totalWorkHours += (SHIFT_TIME_RANGE[v][1]-SHIFT_TIME_RANGE[v][0]); }
+    });
+    const restDaysForOvertimeCalc = codes.filter(v=>leave.isRestCode(v)).length;
+    const normalBaselineHours = (nDays - restDaysForOvertimeCalc) * 8;
+    const estOvertime = Math.max(0, totalWorkHours - normalBaselineHours);
+    if(estOvertime > maxOvertime){
+      add('monthly_overtime_hours', `本月估計工時 ${totalWorkHours} 小時,推估加班約 ${estOvertime} 小時,超過上限 ${maxOvertime} 小時(此為概估,Dp/Ep兼職時數未固定不計入)`, p.name, `本月`, p);
+    }
+  }
+
+  function check_monthlyRest(p, codes, c, add) {
+    const { nDays, params, leave, leaveReq } = c; const mon = c.month + 1;
+    const calMinFromCalendar = c.calendarMinRest;
+    const minMonthly = (calMinFromCalendar!==null && !isNaN(calMinFromCalendar)) ? calMinFromCalendar : (parseInt(params.monthly_rest_days) || 10);
+    const restTotal = codes.filter(v=>leave.isRestCode(v)).length;
+    if(restTotal < minMonthly){
+      const source = calMinFromCalendar!==null ? '(依年度行事曆機構實休天數)' : '(依排班規則設定的參數)';
+      add('monthly_rest_days', `本月休假天數 ${restTotal} 天,少於門檻 ${minMonthly} 天 ${source}`, p.name, `本月`, p);
+    }
+  }
+
+  function check_weekend(p, codes, c, add) {
+    const { nDays, params, leave, leaveReq } = c; const mon = c.month + 1;
+    if(c.isNursing && p.weekendPref){
+      const weekends = [];
+      for(let day=1; day<=nDays; day++){
+        const wd = new Date(c.year, c.month, day).getDay();
+        if(wd===6){
+          // 星期六一定配對「隔天」的星期日,這樣才會是同一個週末
+          const sunDay = day+1;
+          const sunRest = sunDay<=nDays ? leave.isRestCode(codes[sunDay-1]) : null;
+          weekends.push({sat: leave.isRestCode(codes[day-1]), sun: sunRest});
+        } else if(wd===0 && day===1){
+          // 當月第一天就是星期日,這個月沒有對應的星期六,單獨算一個週末
+          weekends.push({sat: null, sun: leave.isRestCode(codes[day-1])});
+        }
+      }
+      // 全月每日是否休假(給 w3/w4 判斷連休用)
+      const restOn = {};
+      for(let day=1; day<=nDays; day++) restOn[day] = leave.isRestCode(codes[day-1]);
+      // 完整六日連休(六、日都休)的週末數,給 w2 用
+      const fullRestWeekends = weekends.filter(w=> w.sat===true && w.sun===true).length;
+
+      if(p.weekendPref==='w1' && weekends.some(w=> !(w.sat||w.sun)))
+        add('weekend_pref', `週末需求「六日至少休一天」未被滿足`, p.name, `本月`, p);
+
+      if(p.weekendPref==='w5' && weekends.some(w=> w.sat===false || w.sun===false))
+        add('weekend_pref', `週末需求「六日都休息」未被滿足`, p.name, `本月`, p);
+
+      if(p.weekendPref==='w2'){
+        if(fullRestWeekends===0)
+          add('weekend_pref', `週末需求「每月至少一次六日連休」未被滿足(本月沒有任何一個完整的六日連休)`, p.name, `本月`, p);
+        else if(fullRestWeekends>=2)
+          add('weekend_pref', `週末需求「其餘週末至少上一天」未被滿足(本月有 ${fullRestWeekends} 個週末六日皆休,超過希望的一次)`, p.name, `本月`, p);
+      }
+
+      if(p.weekendPref==='w3'){
+        // 找出「孤立單日休假」:當天休假,但前一天與後一天都不是休假
+        const isolated = [];
+        for(let day=1; day<=nDays; day++){
+          if(!restOn[day]) continue;
+          const prevRest = day>1 && restOn[day-1];
+          const nextRest = day<nDays && restOn[day+1];
+          if(!prevRest && !nextRest) isolated.push(day);
+        }
+        if(isolated.length)
+          add('weekend_pref', `休假偏好「希望兩日連休」未被滿足(有 ${isolated.length} 天單日休假沒有連著另一天:${isolated.map(d=>d+'號').join('、')})`, p.name, `本月`, p);
+      }
+
+      if(p.weekendPref==='w4'){
+        // 找出「連續兩天(含)以上的休假」
+        const runs = [];
+        let start=null;
+        for(let day=1; day<=nDays+1; day++){
+          const r = (day<=nDays) && restOn[day];
+          if(r && start===null) start=day;
+          else if(!r && start!==null){ if((day-1) - start >= 1) runs.push([start, day-1]); start=null; }
+        }
+        if(runs.length)
+          add('weekend_pref', `休假偏好「不要安排連休」未被滿足(有連續休假:${runs.map(r=>r[0]+'–'+r[1]+'號').join('、')})`, p.name, `本月`, p);
+      }
+    }
+  }
+
+  function check_leaveReq(p, codes, c, add) {
+    const { nDays, params, leave, leaveReq } = c; const mon = c.month + 1;
+    if(leaveReq[p.id]!==undefined){
+      const reqEntry = leaveReq[p.id];
+      const specialCountForReq = codes.filter(v=>leave.isSpecialLeaveCode(v)).length;
+      const compCountForReq = codes.filter(v=>leave.isCompLeaveCode(v)).length;
+      const reqSpecial = c.leaveReqAmount(reqEntry, 'special');
+      const reqComp = c.leaveReqAmount(reqEntry, 'comp');
+      if(reqSpecial!==undefined && reqSpecial!==null && specialCountForReq < reqSpecial){
+        add('leave_request_fulfillment', `登記的特休需求 ${reqSpecial} 天,目前只排了 ${specialCountForReq} 天特休`, p.name, `本月`, p);
+      }
+      if(reqComp!==undefined && reqComp!==null && compCountForReq < reqComp){
+        add('leave_request_fulfillment', `登記的補休需求 ${reqComp} 天,目前只排了 ${compCountForReq} 天補休`, p.name, `本月`, p);
+      }
+    }
+  }
+
+  function check_staffing(c, add) {
+    const { items } = c; const mon = c.month + 1;
+  if(c.isNursing){
+    for(let day=1; day<=c.nDays; day++){
+      const ds = dateKey(c.year, c.month, day);
+      const count2Di = c.items.filter(p=> c.monthData[p.id] && ['2Di','2D8'].includes(c.monthData[p.id][ds])).length;
+      const count3Di = c.items.filter(p=> c.monthData[p.id] && ['3Di','3D8'].includes(c.monthData[p.id][ds])).length;
+      const countE = c.items.filter(p=> c.monthData[p.id] && ['E','E8','Ep'].includes(c.monthData[p.id][ds])).length;
+      const label = `${mon}/${day}`;
+      if(count2Di===0) add('staffing_min', `2樓白班(2Di)當天無人力`, '—', label);
+      if(count3Di===0) add('staffing_min', `3樓白班(3Di)當天無人力`, '—', label);
+      if(countE===0) add('staffing_min', `小夜班當天無人力`, '—', label);
+    }
+  }
+  }
+
+  /* ctx: { items, monthData, year, month(0-11), nDays, isNursing, leaveReq, leaveReqAmount, weekdayNames,
+   *        params:{rest_interval,consecutive_days,biweekly_rest,four_week_rest_total,monthly_overtime_hours,monthly_rest_days},
+   *        calendarMinRest: 機構行事曆實休天數(沒有則 null), leave:{isWorkCode,isRestCode,isSpecialLeaveCode,isCompLeaveCode} }
+   */
+  function checkSchedule(ctx, add) {
+    const checks = [check_eligibility, check_restInterval, check_consecutive, check_biweekly, check_fourWeek,
+                    check_overtime, check_monthlyRest, check_weekend, check_leaveReq];
+    ctx.items.forEach(p => {
+      const codes = [];
+      for (let day = 1; day <= ctx.nDays; day++) {
+        codes.push((ctx.monthData[p.id] && ctx.monthData[p.id][dateKey(ctx.year, ctx.month, day)]) || '');
+      }
+      checks.forEach(fn => fn(p, codes, ctx, add));
+    });
+    if (ctx.isNursing) check_staffing(ctx, add);
+  }
+
   return {
     SHIFT_TIME_RANGE, gapHours,
     ROTATION_SEQUENCE, isPureWhiteRotationStaff, rotationCategoryForMonth,
     EVENT_COLORS, eventColor, contrastTextColor, tintBg, resolveColor, presetToHex,
-    makeLeaveHelpers, dateKey, autoScheduleMonth,
+    makeLeaveHelpers, dateKey, autoScheduleMonth, checkSchedule,
   };
 });
