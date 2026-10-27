@@ -337,6 +337,7 @@
     <div id="loginFirstTimeHint" style="display:none;font-size:12px;color:var(--muted);margin-bottom:10px;">系統偵測到尚未建立任何帳號,請先設定第一個管理者帳號(將自動擁有完整權限)。</div>
     <input type="text" id="loginUsername" placeholder="帳號" style="width:100%;border:1px solid var(--border);border-radius:9px;padding:10px 12px;font-size:14px;font-family:inherit;margin:6px 0;">
     <input type="password" id="loginPassword" placeholder="密碼" style="width:100%;border:1px solid var(--border);border-radius:9px;padding:10px 12px;font-size:14px;font-family:inherit;margin:6px 0;">
+    <input type="password" id="loginSetupToken" placeholder="建立口令(SETUP_TOKEN,向系統安裝者索取)" autocomplete="off" style="display:none;width:100%;border:1px solid var(--border);border-radius:9px;padding:10px 12px;font-size:14px;font-family:inherit;margin:6px 0;">
     <div><button id="loginSubmit" style="border:none;border-radius:11px;background:var(--primary);color:#fff;padding:10px 20px;font-weight:700;cursor:pointer;font-size:13px;margin-top:8px;">登入</button></div>
     <div style="margin-top:8px;"><button id="showForgotBtn" style="border:none;background:none;color:var(--muted);font-size:12px;text-decoration:underline;cursor:pointer;">忘記密碼?</button></div>
     <div id="forgotPanel" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);text-align:left;">
@@ -346,7 +347,7 @@
       <input type="password" id="forgotNewPassword" placeholder="新密碼" style="width:100%;border:1px solid var(--border);border-radius:9px;padding:8px 10px;font-size:13px;font-family:inherit;margin:4px 0;">
       <button id="forgotSubmitBtn" style="border:none;border-radius:9px;background:var(--amber-deep);color:#fff;padding:8px 16px;font-weight:700;cursor:pointer;font-size:12px;margin-top:6px;">重設密碼</button>
     </div>
-    <div class="hint">帳號密碼由系統管理者於後台建立與管理。登入狀態僅保留在本次瀏覽期間,重新整理頁面需要再次登入。</div>
+    <div class="hint">帳號密碼由系統管理者於後台建立與管理。密碼至少 8 個字元。</div>
   </div>
 </div>
 
@@ -910,9 +911,11 @@ async function initLogin(){
   if(needsSetup){
     hint.style.display = 'block';
     title.textContent = '設定第一個管理者帳號';
+    document.getElementById('loginSetupToken').style.display = (r.data && r.data.setupTokenRequired) ? 'block' : 'none';
   } else {
     hint.style.display = 'none';
     title.textContent = '登入機構排班系統';
+    document.getElementById('loginSetupToken').style.display = 'none';
   }
 }
 
@@ -946,7 +949,9 @@ document.getElementById('loginSubmit').onclick = async ()=>{
   if(!uname || !pw){ showToast('請輸入帳號與密碼'); return; }
 
   const endpoint = needsSetup ? '/api/auth/setup' : '/api/auth/login';
-  const r = await window.Api.req('POST', endpoint, { username: uname, password: pw });
+  const body = { username: uname, password: pw };
+  if(needsSetup) body.setupToken = document.getElementById('loginSetupToken').value;
+  const r = await window.Api.req('POST', endpoint, body);
   if(r.networkError){ showToast('無法連線到伺服器,請確認排班系統伺服器有開著'); return; }
   if(!r.ok || !r.data || !r.data.token){
     showToast((r.data && r.data.error) || '登入失敗'); return;
@@ -995,7 +1000,11 @@ document.getElementById('forgotSubmitBtn').onclick = async ()=>{
   document.getElementById('forgotRecoveryCode').value='';
   document.getElementById('forgotNewPassword').value='';
   document.getElementById('forgotPanel').style.display='none';
-  showToast('密碼已重設,請用新密碼登入');
+  if(r.data && r.data.recoveryCode){
+    showRecoveryCodeGate(r.data.recoveryCode, '密碼已重設。這組是你的「新救援碼」(舊的已作廢),請務必記下', null);
+  } else {
+    showToast('密碼已重設,請用新密碼登入');
+  }
 };
 
 document.getElementById('logoutBtn').onclick = async ()=>{

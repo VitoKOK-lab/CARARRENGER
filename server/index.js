@@ -20,8 +20,36 @@ const userRoutes = require('./routes/users');
 const storageRoutes = require('./routes/storage');
 
 const app = express();
+app.disable('x-powered-by');
+if (config.trustProxy) app.set('trust proxy', config.trustProxy);
 
-app.use(express.json({ limit: '25mb' })); // 排班資料可能較大（多月份/多人員），放寬上限
+// --- 安全標頭 ---
+// 前端是單檔 HTML(含行內 script/style 與 data: 圖片),所以 CSP 需允許 'unsafe-inline',
+// 但仍擋掉外部腳本、外部連線、被別站嵌入(clickjacking)與 <base>/<object> 注入。
+app.use((req, res, next) => {
+  res.set({
+    'Content-Security-Policy': [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "img-src 'self' data: blob:",
+      "font-src 'self' data: https://fonts.gstatic.com",
+      "connect-src 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+    ].join('; '),
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'no-referrer',
+  });
+  next();
+});
+
+// 排班資料可能較大（多月份/多人員），只有儲存 API 放寬到 25MB;其餘 API(登入等)限 100KB,避免未登入就被大封包吃記憶體
+app.use('/api/storage', express.json({ limit: '25mb' }));
+app.use(express.json({ limit: '100kb' }));
 
 // --- API ---
 app.use('/api/auth', authRoutes);
@@ -29,6 +57,11 @@ app.use('/api/users', userRoutes);
 app.use('/api/storage', storageRoutes);
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
+
+// 沒有帳號且沒設 SETUP_TOKEN 時,提醒:第一個連上來的人能建立管理者
+if (require('./models').Users.count() === 0 && !config.setupToken) {
+  console.warn('[提醒] 目前還沒有任何帳號,且未設定 SETUP_TOKEN:第一個連上網頁的人可以建立管理者帳號。請儘快自己完成設定,或在 .env 設定 SETUP_TOKEN。');
+}
 
 // --- 前端靜態檔案 ---
 const publicDir = path.join(__dirname, '..', 'public');
