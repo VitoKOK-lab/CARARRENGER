@@ -974,9 +974,9 @@ function showRecoveryCodeGate(code, title, onContinue){
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:3000;display:flex;align-items:center;justify-content:center;padding:20px;';
   overlay.innerHTML = `<div class="panel" style="max-width:420px;width:100%;text-align:left;">
-    <div style="font-weight:800;margin-bottom:8px;">${title}</div>
+    <div style="font-weight:800;margin-bottom:8px;">${escapeHtml(title)}</div>
     <div style="font-size:12.5px;color:var(--muted);margin-bottom:8px;">忘記密碼時要靠它重設。系統只會顯示這一次、之後無法再查詢,請立刻抄下或拍照保存。</div>
-    <div style="font-family:monospace;font-size:20px;font-weight:800;margin:10px 0;text-align:center;letter-spacing:2px;background:var(--amber-soft);border-radius:9px;padding:12px;">${code}</div>
+    <div style="font-family:monospace;font-size:20px;font-weight:800;margin:10px 0;text-align:center;letter-spacing:2px;background:var(--amber-soft);border-radius:9px;padding:12px;">${escapeHtml(code)}</div>
     <button id="recoveryGateBtn" style="border:none;border-radius:9px;background:var(--primary);color:#fff;padding:10px 16px;font-weight:700;cursor:pointer;font-size:13px;width:100%;">我已經記下來了,繼續</button>
   </div>`;
   document.body.appendChild(overlay);
@@ -1045,7 +1045,7 @@ async function renderUserList(){
   else {
     list.innerHTML = users.map(u=>`
       <div class="staff-row">
-        <div class="row-top"><span>${u.username}${u.isSuperAdmin?' 👑':''}</span>
+        <div class="row-top"><span>${escapeHtml(u.username)}${u.isSuperAdmin?' 👑':''}</span>
           <span>
             <button data-id="${u.id}" class="edit-user" title="編輯">✎</button>
             <button data-id="${u.id}" class="del-user" title="刪除">×</button>
@@ -1083,9 +1083,9 @@ function renderUserAddForm(){
   const roleChecks = (prefix, selected)=> ROLES.map(r=>`<label style="margin-right:10px;"><input type="checkbox" class="${prefix}" value="${r.key}" ${selected.includes(r.key)?'checked':''}>${r.label}</label>`).join('') +
     `<label><input type="checkbox" class="${prefix}" value="${ROLE_ALL}" ${selected.includes(ROLE_ALL)?'checked':''}>全部</label>`;
   form.innerHTML = `
-    ${editing?'<div style="font-size:11.5px;color:var(--primary-deep);font-weight:700;">正在編輯:'+editing.username+'</div>':''}
-    <div class="field"><label>帳號</label><input type="text" id="uName" value="${editing?editing.username:''}"></div>
-    <div class="field"><label>密碼</label><input type="text" id="uPass" placeholder="${editing?'留空則不修改':''}" value="${editing?'':''}"></div>
+    ${editing?'<div style="font-size:11.5px;color:var(--primary-deep);font-weight:700;">正在編輯:'+escapeHtml(editing.username)+'</div>':''}
+    <div class="field"><label>帳號</label><input type="text" id="uName" value="${editing?escapeHtml(editing.username):''}"></div>
+    <div class="field"><label>密碼</label><input type="password" autocomplete="new-password" id="uPass" placeholder="${editing?'留空則不修改':''}" value="${editing?'':''}"></div>
     <div class="field"><label>可編輯職務</label><div>${roleChecks('uEdit', editing?editing.editRoles:[])}</div></div>
     <div class="field"><label>可檢視職務</label><div>${roleChecks('uView', editing?editing.viewRoles:[])}</div></div>
     <div class="field"><label><input type="checkbox" id="uSuper" ${editing&&editing.isSuperAdmin?'checked':''}> 後台管理權限</label></div>
@@ -1752,7 +1752,7 @@ function buildColorPickerCell(rowIdx, colIdx, val){
   return td;
 }
 function refreshCodeDatalists(){
-  const extra = customShiftCodes.filter(c=>c.code).map(c=>`<option value="${c.code}">`).join('');
+  const extra = customShiftCodes.filter(c=>c.code).map(c=>`<option value="${escapeHtml(c.code)}">`).join('');
   const nurseList = document.getElementById('nurseCodesList');
   const simpleList = document.getElementById('simpleCodesList');
   if(nurseList) nurseList.innerHTML = nurseList.dataset.base + extra;
@@ -2087,7 +2087,7 @@ async function renderGrid(){
 
   let body = '<tbody>';
   items.forEach((p, rowIdx)=>{
-    body += `<tr draggable="true" data-staff-id="${p.id}" class="staff-row-draggable"><td class="name-cell" style="cursor:grab;">⠿ ${p.name}</td><td class="code-cell" draggable="false">${p.code||''}</td>`;
+    body += `<tr draggable="true" data-staff-id="${p.id}" class="staff-row-draggable"><td class="name-cell" style="cursor:grab;">⠿ ${escapeHtml(p.name)}</td><td class="code-cell" draggable="false">${escapeHtml(p.code||'')}</td>`;
     let regularLeaveCount = 0, specialLeaveCount = 0, compLeaveCount = 0;
     for(let day=1; day<=nDays; day++){
       const ds = dateStr(monthCursor, day);
@@ -2098,7 +2098,7 @@ async function renderGrid(){
       else if(isCompLeaveCode(val)) compLeaveCount++;
       else if(isRegularLeaveCodeOnly(val)) regularLeaveCount++;
       const {cls, style} = cellStyleFor(val);
-      body += `<td class="shift-cell ${cls} ${isWeekend?'weekend-col':''}" style="${style}" draggable="false" data-staff="${p.id}" data-date="${ds}" data-row="${rowIdx}" data-col="${day}">${displayCode(val)}</td>`;
+      body += `<td class="shift-cell ${cls} ${isWeekend?'weekend-col':''}" style="${style}" draggable="false" data-staff="${p.id}" data-date="${ds}" data-row="${rowIdx}" data-col="${day}">${escapeHtml(displayCode(val))}</td>`;
     }
     body += `<td style="text-align:center;font-weight:800;background:#F0F5EA;color:var(--primary-deep);">${regularLeaveCount}</td>`;
     body += `<td style="text-align:center;font-weight:800;background:#FBF3E4;color:#9C7527;">${specialLeaveCount}</td>`;
@@ -2151,7 +2151,7 @@ async function renderGrid(){
         const ev = (eventMap[ds] || [])[layer];
         if(ev){
           const c = resolveColor(ev.color);
-          body += `<td style="background:${c.bg};color:${c.fg};font-size:9.5px;font-weight:700;text-align:center;padding:4px 2px;line-height:1.2;" title="${ev.text}">${ev.text}</td>`;
+          body += `<td style="background:${c.bg};color:${c.fg};font-size:9.5px;font-weight:700;text-align:center;padding:4px 2px;line-height:1.2;" title="${escapeHtml(ev.text)}">${escapeHtml(ev.text)}</td>`;
         } else {
           body += `<td></td>`;
         }
@@ -2385,7 +2385,7 @@ function renderMergedPicker(){
     const n = list.filter(p=> mergedSelIds.has(p.id)).length;
     total += list.length; sel += n;
     html += `<div class="merged-dept"><label class="merged-dept-head"><input type="checkbox" class="merged-dept-cb" data-role="${r.key}" ${(list.length>0 && n===list.length)?'checked':''}> ${r.label}(${n}/${list.length})${canEditRole(r.key)?'':'・僅檢視'}</label><div class="merged-chips">` +
-      list.map(p=>`<label class="merged-chip${canEditRole(r.key)?'':' ro'}"><input type="checkbox" class="merged-staff-cb" data-id="${p.id}" ${mergedSelIds.has(p.id)?'checked':''}> ${p.name}</label>`).join('') +
+      list.map(p=>`<label class="merged-chip${canEditRole(r.key)?'':' ro'}"><input type="checkbox" class="merged-staff-cb" data-id="${p.id}" ${mergedSelIds.has(p.id)?'checked':''}> ${escapeHtml(p.name)}</label>`).join('') +
       `</div></div>`;
   });
   box.innerHTML = html || '<div class="empty-state">目前沒有可檢視的職務</div>';
@@ -2442,7 +2442,7 @@ async function renderMergedGrid(){
   groups.forEach(g=>{
     body += `<tr class="merged-sep"><td colspan="${nDays+5}"><span style="display:inline-block;position:sticky;left:8px;">${g.role.label}${canEditRole(g.role.key)?'':'(僅檢視)'}</span></td></tr>`;
     g.list.forEach(p=>{
-      body += `<tr draggable="true" data-staff-id="${p.id}" data-role="${p.role}" class="staff-row-draggable"><td class="name-cell" style="cursor:grab;">⠿ ${p.name}</td>`;
+      body += `<tr draggable="true" data-staff-id="${p.id}" data-role="${p.role}" class="staff-row-draggable"><td class="name-cell" style="cursor:grab;">⠿ ${escapeHtml(p.name)}</td>`;
       let reg=0, spec=0, comp=0;
       for(let day=1; day<=nDays; day++){
         const ds = dateStr(monthCursor, day);
@@ -2451,7 +2451,7 @@ async function renderMergedGrid(){
         if(isSpecialLeaveCode(val)) spec++;
         else if(isCompLeaveCode(val)) comp++;
         else if(isRegularLeaveCodeOnly(val)) reg++;
-        body += `<td class="shift-cell ${mergedCellCls(val, p.role)} ${wd===0||wd===6?'weekend-col':''}" style="${mergedCellSty(val)}" draggable="false" data-staff="${p.id}" data-date="${ds}" data-row="${rowIdx}" data-col="${day}">${displayCode(val)}</td>`;
+        body += `<td class="shift-cell ${mergedCellCls(val, p.role)} ${wd===0||wd===6?'weekend-col':''}" style="${mergedCellSty(val)}" draggable="false" data-staff="${p.id}" data-date="${ds}" data-row="${rowIdx}" data-col="${day}">${escapeHtml(displayCode(val))}</td>`;
       }
       body += `<td style="text-align:center;font-weight:800;background:#F0F5EA;color:var(--primary-deep);">${reg}</td>`;
       body += `<td style="text-align:center;font-weight:800;background:#FBF3E4;color:#9C7527;">${spec}</td>`;
@@ -2685,12 +2685,12 @@ async function renderDraftGrid(){
 
   let body = '<tbody>';
   items.forEach((p, rowIdx)=>{
-    body += `<tr><td class="name-cell">${p.name}</td>`;
+    body += `<tr><td class="name-cell">${escapeHtml(p.name)}</td>`;
     for(let day=1; day<=nDays; day++){
       const ds = dateStr(monthCursor, day);
       const wd = new Date(monthCursor.getFullYear(), monthCursor.getMonth(), day).getDay();
       const val = (draftData[p.id] && draftData[p.id][ds]) || '';
-      body += `<td class="shift-cell ${cellCls(val)} ${wd===0||wd===6?'weekend-col':''}" style="${cellSty(val)}" draggable="false" data-staff="${p.id}" data-date="${ds}" data-row="${rowIdx}" data-col="${day}">${displayCode(val)}</td>`;
+      body += `<td class="shift-cell ${cellCls(val)} ${wd===0||wd===6?'weekend-col':''}" style="${cellSty(val)}" draggable="false" data-staff="${p.id}" data-date="${ds}" data-row="${rowIdx}" data-col="${day}">${escapeHtml(displayCode(val))}</td>`;
     }
     body += '</tr>';
   });
@@ -2868,7 +2868,7 @@ function updateLeavePanel(){
     sel.innerHTML = '<option value="">（尚無人員,請到後台管理新增）</option>';
     sel2.innerHTML = '<option value="">（尚無人員）</option>';
   } else {
-    const opts = items.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+    const opts = items.map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join('');
     sel.innerHTML = opts;
     sel2.innerHTML = opts;
   }
@@ -2890,7 +2890,7 @@ async function renderLeaveReqList(){
   if(chips.length===0){ list.innerHTML = '<span style="font-size:11.5px;color:var(--muted);">本月尚無登記</span>'; return; }
   list.innerHTML = chips.map(({p,type,days})=>`
     <span class="tag" style="background:var(--brown-soft);color:var(--brown);border-color:var(--brown);">
-      ${p.name}:${LEAVE_REQ_TYPE_LABEL[type]}${days}天 <button data-id="${p.id}" data-type="${type}" style="border:none;background:none;color:var(--danger);cursor:pointer;font-weight:900;margin-left:3px;">×</button>
+      ${escapeHtml(p.name)}:${LEAVE_REQ_TYPE_LABEL[type]}${days}天 <button data-id="${p.id}" data-type="${type}" style="border:none;background:none;color:var(--danger);cursor:pointer;font-weight:900;margin-left:3px;">×</button>
     </span>
   `).join('');
   list.querySelectorAll('button[data-id]').forEach(btn=>{
@@ -2965,7 +2965,7 @@ function renderCodeRefStrip(){
     return map[base] || map['empty'];
   }
 
-  strip.innerHTML = codes.map(code=>`<div class="code-ref-chip" style="${styleFor(code)}" data-code="${code}" title="點一下複製「${code}」">${displayCode(code)==='R'?code:displayCode(code)}</div>`).join('');
+  strip.innerHTML = codes.map(code=>`<div class="code-ref-chip" style="${styleFor(code)}" data-code="${escapeHtml(code)}" title="點一下複製「${escapeHtml(code)}」">${escapeHtml(displayCode(code)==='R'?code:displayCode(code))}</div>`).join('');
   strip.querySelectorAll('.code-ref-chip').forEach(chip=>{
     chip.onclick = ()=>{
       const code = chip.dataset.code;
@@ -3254,7 +3254,7 @@ document.getElementById('importFileInput').addEventListener('change', async (e)=
     document.getElementById('importSummary').textContent =
       `本次匯入目標:${ROLES.find(r=>r.key===currentRole).label} · ${monthCursor.getFullYear()}年${monthCursor.getMonth()+1}月。比對成功 ${matched.length} 位,比對不到姓名 ${unmatchedNames.length} 位。`;
     document.getElementById('importUnmatchedList').innerHTML = unmatchedNames.length
-      ? `<div class="hc-item soft"><span class="hc-badge">姓名比對不到</span><div class="hc-body"><div class="hc-title">${unmatchedNames.join('、')}</div><div class="hc-suggest">這幾位不會被匯入,請確認人員資料庫裡的姓名拼字是否一致</div></div></div>`
+      ? `<div class="hc-item soft"><span class="hc-badge">姓名比對不到</span><div class="hc-body"><div class="hc-title">${unmatchedNames.map(escapeHtml).join('、')}</div><div class="hc-suggest">這幾位不會被匯入,請確認人員資料庫裡的姓名拼字是否一致</div></div></div>`
       : '';
     document.getElementById('importPreviewPanel').style.display = 'block';
     document.getElementById('importPreviewPanel').scrollIntoView({behavior:'smooth', block:'nearest'});
