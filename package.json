@@ -11,7 +11,9 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "test": "node tests/test_rotation.js && node tests/test_rest_interval.js && node tests/test_auto_schedule_floor_fill.js && node tests/test_weekend_pref_grouping.js && node tests/test_leave_category_split.js && node tests/test_import_matching.js && node tests/test_color_picker_resolve.js && node tests/test_multiselect_and_draft.js && node tests/test_parttime_exclusion.js && node tests/test_api.js && node tests/test_security.js"
+    "test": "node tests/test_rotation.js && node tests/test_rest_interval.js && node tests/test_auto_schedule_floor_fill.js && node tests/test_weekend_pref_grouping.js && node tests/test_leave_category_split.js && node tests/test_import_matching.js && node tests/test_color_picker_resolve.js && node tests/test_multiselect_and_draft.js && node tests/test_parttime_exclusion.js && node tests/test_api.js && node tests/test_security.js && node tests/test_api.js --worker && node tests/test_security.js --worker",
+    "cf:dev": "npx wrangler dev",
+    "cf:deploy": "npx wrangler deploy"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

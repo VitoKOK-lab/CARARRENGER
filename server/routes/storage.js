@@ -22,18 +22,7 @@ const express = require('express');
 const router = express.Router();
 const { KV } = require('../models');
 const { requireAuth } = require('../middleware');
-
-const KEY_PATTERN = /^[A-Za-z0-9:_.\-]{1,120}$/;
-const EDITOR_PREFIXES = ['schedule-month:', 'schedule-draft:', 'leave-request:'];
-const EDITOR_KEYS = ['staff-data-v3'];
-
-function canWrite(user, key) {
-  if (user.isSuperAdmin) return true;
-  if (key.startsWith('merged-view-sel:')) return key === 'merged-view-sel:' + user.id;
-  const isEditorKey = EDITOR_KEYS.includes(key) || EDITOR_PREFIXES.some((p) => key.startsWith(p));
-  if (!isEditorKey) return false;
-  return Array.isArray(user.editRoles) && user.editRoles.length > 0;
-}
+const { KEY_PATTERN, canWriteStorage: canWrite } = require('../../shared/policy');
 
 router.use(requireAuth);
 

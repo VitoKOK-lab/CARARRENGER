@@ -18,11 +18,11 @@ const { Users } = require('../models');
 const { verifyPassword, signToken, passwordVersion, validatePassword, DUMMY_HASH } = require('../auth');
 const { requireAuth } = require('../middleware');
 const { createLimiter } = require('../rateLimit');
+const { RATE_LIMIT } = require('../../shared/policy');
 
 const ROLE_ALL = 'all';
-const WINDOW_MS = 15 * 60 * 1000;
-const perAccount = createLimiter({ max: 8, windowMs: WINDOW_MS });
-const perIp = createLimiter({ max: 40, windowMs: WINDOW_MS });
+const perAccount = createLimiter({ max: RATE_LIMIT.perAccountMax, windowMs: RATE_LIMIT.windowMs });
+const perIp = createLimiter({ max: RATE_LIMIT.perIpMax, windowMs: RATE_LIMIT.windowMs });
 
 // 回傳 true 表示已回應 429(呼叫端直接 return)
 function blocked(res, keys) {

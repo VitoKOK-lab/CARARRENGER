@@ -8,6 +8,8 @@
 
 ---
 
+> **想讓同事用網址開、不用一台電腦一直開著?** 見 [docs/cloudflare.md](docs/cloudflare.md):部署到 Cloudflare Workers + D1。
+
 ## 這一版做了什麼（跟原型的差別）
 
 | 項目 | 原型（artifact 單檔） | 這一版（正式版） |
