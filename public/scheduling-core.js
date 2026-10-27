@@ -118,10 +118,148 @@
     return { customLeaveCategory, isSpecialLeaveCode, isCompLeaveCode, isRegularLeaveCodeOnly, isWorkCode, isRestCode };
   }
 
+  /* ---------- 自動排班(護理) ----------
+   * 純函式:直接修改 ctx.monthData(代碼寫入 monthData[人員id][YYYY-MM-DD]),回傳「系統無法自動決定」的提示清單。
+   * ctx: { items, monthData, year, month(0-11), nDays, maxConsec, minGap, defaultMonthlyRest,
+   *        leave:{isWorkCode,isRestCode}, random?:()=>number }
+   */
+  function dateKey(year, month, day) {
+    return `${year}-${String(month + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  }
+
+  function makeScheduleState(ctx) {
+    const st = Object.assign({ log: [], random: Math.random }, ctx);
+    st.items.forEach(p => { if (!st.monthData[p.id]) st.monthData[p.id] = {}; });
+    st.getCode = (p, day) => st.monthData[p.id][dateKey(st.year, st.month, day)] || '';
+    st.setCode = (p, day, code) => { st.monthData[p.id][dateKey(st.year, st.month, day)] = code; };
+    st.isEmpty = (p, day) => !st.getCode(p, day);
+    st.label = (day) => `${st.month + 1}/${day}`;
+    st.consecutiveStreakBefore = (p, day) => {
+      let streak = 0;
+      for (let d = day - 1; d >= 1; d--) { if (st.leave.isWorkCode(st.getCode(p, d))) streak++; else break; }
+      return streak;
+    };
+    st.restIntervalOk = (p, day, newCode) => {
+      const prev = day > 1 ? st.getCode(p, day - 1) : '';
+      const gapBefore = gapHours(prev, newCode);
+      if (gapBefore !== null && gapBefore < st.minGap) return false;
+      const next = day < st.nDays ? st.getCode(p, day + 1) : '';
+      const gapAfter = gapHours(newCode, next);
+      if (gapAfter !== null && gapAfter < st.minGap) return false;
+      return true;
+    };
+    st.weekendForcesRest = (p, day) => {
+      if (!p.weekendPref) return false;
+      const wd = new Date(st.year, st.month, day).getDay();
+      return p.weekendPref === 'w5' && (wd === 0 || wd === 6);
+    };
+    st.restCountSoFar = (p) => {
+      let n = 0;
+      for (let day = 1; day <= st.nDays; day++) { if (!st.isEmpty(p, day) && st.leave.isRestCode(st.getCode(p, day))) n++; }
+      return n;
+    };
+    return st;
+  }
+
+  // Pass A 前半:找出本月固定輪到 2Di / 3Di 的純白班輪調同仁
+  function pickRotationRegulars(st) {
+    const regulars = {};
+    st.items.filter(isPureWhiteRotationStaff).forEach(p => {
+      const cat = rotationCategoryForMonth(p, new Date(st.year, st.month, 1));
+      if (cat === '2Di' || cat === '3Di') {
+        if (!regulars[cat]) regulars[cat] = p;
+        else st.log.push(`${cat} 這個月有兩位以上同仁輪調起始設定衝突到同一格,已用「${regulars[cat].name}」,「${p.name}」需要你手動安排`);
+      } else if (cat === null) {
+        st.log.push(`${p.name} 有勾選三個月輪調,但輪調起始月份/班別尚未設定,這個人本月沒有被自動排班`);
+      }
+    });
+    return regulars;
+  }
+
+  // Pass A 後半:固定樓層同仁整月排滿(必要時插入休假)
+  function fillRegularSlots(st, regulars) {
+    ['2Di','3Di'].forEach(cat => {
+      const p = regulars[cat];
+      if (!p) { st.log.push(`本月沒有同仁固定輪到「${cat}」,如果沒有其他白班同仁可以補位,這個位置會需要你手動安排`); return; }
+      for (let day = 1; day <= st.nDays; day++) {
+        if (!st.isEmpty(p, day)) continue;
+        const streak = st.consecutiveStreakBefore(p, day);
+        const remainingDays = st.nDays - day + 1;
+        const remainingRestNeeded = Math.max(0, st.defaultMonthlyRest - st.restCountSoFar(p));
+        let shouldRest = false;
+        if (streak >= st.maxConsec) shouldRest = true;
+        else if (st.weekendForcesRest(p, day)) shouldRest = true;
+        else if (remainingRestNeeded >= remainingDays) shouldRest = true;
+        else if (remainingRestNeeded > 0 && streak >= 2 && st.random() < (remainingRestNeeded / remainingDays)) shouldRest = true;
+
+        if (shouldRest) st.setCode(p, day, '休');
+        else if (st.restIntervalOk(p, day, cat)) st.setCode(p, day, cat);
+        else st.setCode(p, day, '休');
+      }
+    });
+  }
+
+  // Pass B:其餘同仁補白班樓層 / 小夜 / 大夜的缺口。
+  // 補位池排除兼職(partTime)——兼職只能在自己固定到班星期上Dp/Ep,完全交給使用者手動安排。
+  function fillCoverageGaps(st, regulars) {
+    const { items } = st;
+    const floorFillPool = items.filter(p => p.eligWhite && !p.partTime && p !== regulars['2Di'] && p !== regulars['3Di']);
+    const eveningPool = items.filter(p => p.eligEvening && !p.partTime);
+    const nightPool = items.filter(p => p.eligNight && !p.partTime);
+    const floorCount = {}, eCount = {}, nCount = {};
+    items.forEach(p => { floorCount[p.id] = 0; eCount[p.id] = 0; nCount[p.id] = 0; });
+
+    const pick = (pool, day, code, counter) => {
+      const candidates = pool.filter(p => st.isEmpty(p, day) && st.consecutiveStreakBefore(p, day) < st.maxConsec && !st.weekendForcesRest(p, day) && st.restIntervalOk(p, day, code));
+      candidates.sort((a, b) => counter[a.id] - counter[b.id]);
+      if (!candidates.length) return false;
+      st.setCode(candidates[0], day, code);
+      counter[candidates[0].id]++;
+      return true;
+    };
+
+    for (let day = 1; day <= st.nDays; day++) {
+      ['2Di','3Di'].forEach(cat => {
+        const covered = items.some(p => st.getCode(p, day) === cat || st.getCode(p, day) === (cat === '2Di' ? '2D8' : '3D8'));
+        if (covered) return;
+        if (!pick(floorFillPool, day, cat, floorCount)) st.log.push(`${st.label(day)} 找不到人選可補 ${cat} 白班,需要你手動安排`);
+      });
+      if (!items.some(p => ['E','E8','Ep'].includes(st.getCode(p, day)))) {
+        if (!pick(eveningPool, day, 'E', eCount)) st.log.push(`${st.label(day)} 找不到人選可排小夜(E),需要你手動安排`);
+      }
+      if (!items.some(p => ['N','E8'].includes(st.getCode(p, day)))) {
+        if (!pick(nightPool, day, 'N', nCount)) st.log.push(`${st.label(day)} 找不到人選可排大夜(N),需要你手動安排`);
+      }
+    }
+  }
+
+  // Pass C:剩下空著的格子 → 先休假湊到每月額度,滿了才排 Di(白班資格)或維持休假。兼職同仁整批跳過。
+  function fillRemaining(st) {
+    st.items.forEach(p => {
+      if (p.partTime) return;
+      let restDays = st.restCountSoFar(p);
+      for (let day = 1; day <= st.nDays; day++) {
+        if (!st.isEmpty(p, day)) continue;
+        if (restDays < st.defaultMonthlyRest) { st.setCode(p, day, '休'); restDays++; }
+        else if (p.eligWhite) st.setCode(p, day, 'Di');
+        else { st.setCode(p, day, '休'); restDays++; }
+      }
+    });
+  }
+
+  function autoScheduleMonth(ctx) {
+    const st = makeScheduleState(ctx);
+    const regulars = pickRotationRegulars(st);
+    fillRegularSlots(st, regulars);
+    fillCoverageGaps(st, regulars);
+    fillRemaining(st);
+    return st.log;
+  }
+
   return {
     SHIFT_TIME_RANGE, gapHours,
     ROTATION_SEQUENCE, isPureWhiteRotationStaff, rotationCategoryForMonth,
     EVENT_COLORS, eventColor, contrastTextColor, tintBg, resolveColor, presetToHex,
-    makeLeaveHelpers,
+    makeLeaveHelpers, dateKey, autoScheduleMonth,
   };
 });

@@ -2894,137 +2894,16 @@ document.getElementById('applyLeaveBtn').onclick = async ()=>{
 async function autoScheduleNursing(){
   const items = staff['nursing'];
   const monthData = await loadMonth();
-  const nDays = daysInMonth(monthCursor);
-  const maxConsec = parseInt(getRuleConfig('consecutive_days').param) || 5;
-  const minGap = parseFloat(getRuleConfig('rest_interval').param) || 11;
   const calRow = orgCalendar[monthCursor.getMonth()];
   const calMin = calRow && calRow.actualRest ? parseInt(calRow.actualRest) : null;
-  const defaultMonthlyRest = (calMin!==null && !isNaN(calMin)) ? calMin : (parseInt(getRuleConfig('monthly_rest_days').param) || 10);
-  const log = [];
-
-  items.forEach(p=>{ if(!monthData[p.id]) monthData[p.id] = {}; });
-
-  function getCode(p, day){ const ds=dateStr(monthCursor, day); return monthData[p.id][ds] || ''; }
-  function setCode(p, day, code){ const ds=dateStr(monthCursor, day); monthData[p.id][ds] = code; }
-  function isEmpty(p, day){ return !getCode(p, day); }
-  function consecutiveStreakBefore(p, day){
-    let streak=0;
-    for(let d=day-1; d>=1; d--){ const c=getCode(p,d); if(isWorkCode(c)) streak++; else break; }
-    return streak;
-  }
-  function restIntervalOk(p, day, newCode){
-    const prev = day>1 ? getCode(p, day-1) : '';
-    const gapBefore = gapHours(prev, newCode);
-    if(gapBefore!==null && gapBefore < minGap) return false;
-    const next = day<nDays ? getCode(p, day+1) : '';
-    const gapAfter = gapHours(newCode, next);
-    if(gapAfter!==null && gapAfter < minGap) return false;
-    return true;
-  }
-  function weekendForcesRest(p, day){
-    if(!p.weekendPref) return false;
-    const wd = new Date(monthCursor.getFullYear(), monthCursor.getMonth(), day).getDay();
-    return p.weekendPref==='w5' && (wd===0||wd===6);
-  }
-  function restCountSoFar(p){
-    let n=0;
-    for(let day=1; day<=nDays; day++){ if(!isEmpty(p,day) && isRestCode(getCode(p,day))) n++; }
-    return n;
-  }
-
-  // ---- Pass A: rotation-tracked pure-white staff get their fixed 2Di/3Di slot ----
-  const rotationStaff = items.filter(isPureWhiteRotationStaff);
-  const regulars = {};   // '2Di'/'3Di' -> staff (the person fixed to that floor this month)
-  const rotationFloaters = [];
-  rotationStaff.forEach(p=>{
-    const cat = rotationCategoryForMonth(p, monthCursor);
-    if(cat==='2Di' || cat==='3Di'){
-      if(!regulars[cat]) regulars[cat]=p;
-      else log.push(`${cat} 這個月有兩位以上同仁輪調起始設定衝突到同一格,已用「${regulars[cat].name}」,「${p.name}」需要你手動安排`);
-    } else if(cat==='float'){
-      rotationFloaters.push(p);
-    } else if(cat===null){
-      log.push(`${p.name} 有勾選三個月輪調,但輪調起始月份/班別尚未設定,這個人本月沒有被自動排班`);
-    }
+  const log = SchedulingCore.autoScheduleMonth({
+    items, monthData,
+    year: monthCursor.getFullYear(), month: monthCursor.getMonth(), nDays: daysInMonth(monthCursor),
+    maxConsec: parseInt(getRuleConfig('consecutive_days').param) || 5,
+    minGap: parseFloat(getRuleConfig('rest_interval').param) || 11,
+    defaultMonthlyRest: (calMin!==null && !isNaN(calMin)) ? calMin : (parseInt(getRuleConfig('monthly_rest_days').param) || 10),
+    leave: { isWorkCode, isRestCode },
   });
-
-  ['2Di','3Di'].forEach(cat=>{
-    const p = regulars[cat];
-    if(!p){ log.push(`本月沒有同仁固定輪到「${cat}」,如果沒有其他白班同仁可以補位,這個位置會需要你手動安排`); return; }
-    for(let day=1; day<=nDays; day++){
-      if(!isEmpty(p, day)) continue;
-      const streak = consecutiveStreakBefore(p, day);
-      const remainingDays = nDays - day + 1;
-      const remainingRestNeeded = Math.max(0, defaultMonthlyRest - restCountSoFar(p));
-      let shouldRest = false;
-      if(streak >= maxConsec) shouldRest = true;
-      else if(weekendForcesRest(p, day)) shouldRest = true;
-      else if(remainingRestNeeded >= remainingDays) shouldRest = true;
-      else if(remainingRestNeeded > 0 && streak>=2 && Math.random() < (remainingRestNeeded/remainingDays)) shouldRest = true;
-
-      if(shouldRest){ setCode(p, day, '休'); }
-      else if(restIntervalOk(p, day, cat)){ setCode(p, day, cat); }
-      else { setCode(p, day, '休'); }
-    }
-  });
-
-  // ---- Pass B: everyone else who can help cover 白班/小夜/大夜 gaps ----
-  // 修正重點1:補位池要排除兼職(partTime)同仁——兼職只能在自己固定到班星期上Dp/Ep,
-  // 不應該被自動排班拉去補正式的2Di/3Di/E/N,那樣會違反「兼職只能排固定到班星期」的硬性規則。
-  // 兼職同仁的班別完全交給使用者手動安排。
-  const floorFillPool = items.filter(p=> p.eligWhite && !p.partTime && p!==regulars['2Di'] && p!==regulars['3Di']);
-  const eveningPool = items.filter(p=> p.eligEvening && !p.partTime);
-  const nightPool = items.filter(p=> p.eligNight && !p.partTime);
-  const floorCount = {}, eCount = {}, nCount = {};
-  items.forEach(p=>{ floorCount[p.id]=0; eCount[p.id]=0; nCount[p.id]=0; });
-
-  for(let day=1; day<=nDays; day++){
-    // 白班樓層缺口(2Di / 3Di 當天沒有人covering)
-    ['2Di','3Di'].forEach(cat=>{
-      const covered = items.some(p=> getCode(p, day)===cat || getCode(p, day)===(cat==='2Di'?'2D8':'3D8'));
-      if(covered) return;
-      const candidates = floorFillPool.filter(p=> isEmpty(p, day) && consecutiveStreakBefore(p, day) < maxConsec && !weekendForcesRest(p, day) && restIntervalOk(p, day, cat));
-      candidates.sort((a,b)=> floorCount[a.id]-floorCount[b.id]);
-      if(candidates.length){ setCode(candidates[0], day, cat); floorCount[candidates[0].id]++; }
-      else log.push(`${monthCursor.getMonth()+1}/${day} 找不到人選可補 ${cat} 白班,需要你手動安排`);
-    });
-
-    // 小夜缺口
-    const dayHasE = items.some(p=> ['E','E8','Ep'].includes(getCode(p, day)));
-    if(!dayHasE){
-      const candidates = eveningPool.filter(p=> isEmpty(p, day) && consecutiveStreakBefore(p, day) < maxConsec && !weekendForcesRest(p, day) && restIntervalOk(p, day, 'E'));
-      candidates.sort((a,b)=> eCount[a.id]-eCount[b.id]);
-      if(candidates.length){ setCode(candidates[0], day, 'E'); eCount[candidates[0].id]++; }
-      else log.push(`${monthCursor.getMonth()+1}/${day} 找不到人選可排小夜(E),需要你手動安排`);
-    }
-
-    // 大夜缺口
-    const dayHasN = items.some(p=> ['N','E8'].includes(getCode(p, day)));
-    if(!dayHasN){
-      const candidates = nightPool.filter(p=> isEmpty(p, day) && consecutiveStreakBefore(p, day) < maxConsec && !weekendForcesRest(p, day) && restIntervalOk(p, day, 'N'));
-      candidates.sort((a,b)=> nCount[a.id]-nCount[b.id]);
-      if(candidates.length){ setCode(candidates[0], day, 'N'); nCount[candidates[0].id]++; }
-      else log.push(`${monthCursor.getMonth()+1}/${day} 找不到人選可排大夜(N),需要你手動安排`);
-    }
-  }
-
-  // ---- Pass C: 剩下還空著的格子 → 先休假湊到每月額度,滿了才排 Di(白班資格)或維持休假 ----
-  // 修正重點2:兼職同仁完全跳過這一段,格子維持空白讓使用者手動排Dp/Ep,
-  // 不會被自動塞休/Di。同時「每月休假天數」這條規則如果被設定成「僅全職適用」,
-  // 這裡也要跟健檢一致,不對兼職同仁套用休假額度邏輯(雖然兼職已經整批跳過,這裡仍保留判斷式以防未來調整)。
-  const monthlyRestTarget = getRuleConfig('monthly_rest_days').target;
-  items.forEach(p=>{
-    if(p.partTime) return; // 兼職完全不自動排,交給使用者手動排Dp/Ep
-    if(monthlyRestTarget==='fulltime' && p.partTime) return; // 保留判斷式,雙重保險
-    let restDays = restCountSoFar(p);
-    for(let day=1; day<=nDays; day++){
-      if(!isEmpty(p, day)) continue;
-      if(restDays < defaultMonthlyRest){ setCode(p, day, '休'); restDays++; }
-      else if(p.eligWhite){ setCode(p, day, 'Di'); }
-      else { setCode(p, day, '休'); restDays++; }
-    }
-  });
-
   await saveMonth();
   return log;
 }
