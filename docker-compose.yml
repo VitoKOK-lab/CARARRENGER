@@ -12,7 +12,8 @@ services:
     environment:
       NODE_ENV: production
       # ⚠ 一定要改成一串很長的隨機字!產生方法見 .env.example
-      JWT_SECRET: "請改成一串很長的隨機字串"
+      JWT_SECRET: "${JWT_SECRET:?請在同資料夾的 .env 設定 JWT_SECRET(很長的隨機字串)}"
+      SETUP_TOKEN: "${SETUP_TOKEN:-}"   # 選填:設定後建立第一個管理者需輸入此口令
       JWT_EXPIRES_IN: "30d"
       DB_PATH: /app/data/scheduling.db
     volumes:

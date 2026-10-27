@@ -2,8 +2,9 @@
 /**
  * 資料存取層：把資料庫的一列轉成前端看得懂的物件，並提供 CRUD 方法。
  */
+const crypto = require('crypto');
 const db = require('./db');
-const { hashPassword, verifyPassword } = require('./auth');
+const { hashPassword, verifyPassword, DUMMY_HASH } = require('./auth');
 
 function nowIso() {
   return new Date().toISOString();
@@ -11,13 +12,15 @@ function nowIso() {
 
 function genId() {
   // 不依賴外部套件的簡單唯一 ID
-  return 'u' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+  return 'u' + Date.now().toString(36) + crypto.randomBytes(5).toString('hex');
 }
 
-// 忘記密碼救援碼：XXXX-XXXX-XXXX（英數大寫），只顯示一次，資料庫裡存 bcrypt 雜湊
+// 忘記密碼救援碼：XXXX-XXXX-XXXX-XXXX（去掉易混淆字元的英數大寫,約 80 bit），只顯示一次，資料庫裡存 bcrypt 雜湊。
+// 用密碼學安全亂數(crypto.randomInt),不可用 Math.random。
+const RECOVERY_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // 無 I L O 0 1
 function genRecoveryCode() {
-  const seg = () => Math.random().toString(36).slice(2, 6).toUpperCase().padEnd(4, '0');
-  return `${seg()}-${seg()}-${seg()}`;
+  const seg = () => Array.from({ length: 4 }, () => RECOVERY_ALPHABET[crypto.randomInt(RECOVERY_ALPHABET.length)]).join('');
+  return `${seg()}-${seg()}-${seg()}-${seg()}`;
 }
 
 function normalizeRecovery(code) {
@@ -80,13 +83,14 @@ const Users = {
   // 用救援碼重設密碼（忘記密碼流程）。成功回傳 true，帳號不存在或救援碼不符回傳對應原因。
   resetPasswordByRecovery(username, code, newPassword) {
     const row = this.findByUsername(String(username || '').trim());
-    if (!row) return { ok: false, reason: 'no_user' };
-    if (!row.recovery_code || !verifyPassword(normalizeRecovery(code), row.recovery_code)) {
-      return { ok: false, reason: 'bad_code' };
-    }
-    db.prepare('UPDATE users SET password_hash=?, updated_at=? WHERE id=?')
-      .run(hashPassword(String(newPassword)), nowIso(), row.id);
-    return { ok: true };
+    // 帳號不存在時也跑一次 bcrypt,避免用耗時差異列舉帳號
+    const ok = verifyPassword(normalizeRecovery(code), row && row.recovery_code ? row.recovery_code : DUMMY_HASH);
+    if (!row || !row.recovery_code || !ok) return { ok: false, reason: row ? 'bad_code' : 'no_user' };
+    // 救援碼用過即換新(舊碼立刻作廢),回傳新碼讓使用者重新記下
+    const newCode = genRecoveryCode();
+    db.prepare('UPDATE users SET password_hash=?, recovery_code=?, updated_at=? WHERE id=?')
+      .run(hashPassword(String(newPassword)), hashPassword(normalizeRecovery(newCode)), nowIso(), row.id);
+    return { ok: true, recoveryCode: newCode };
   },
 
   // 重新產生某帳號的救援碼（原救援碼也遺失時，由超級管理者代為重設）。回傳新的明碼救援碼。
@@ -143,4 +147,4 @@ const KV = {
   },
 };
 
-module.exports = { Users, KV, toPublicUser };
+module.exports = { Users, KV, toPublicUser, genRecoveryCode };

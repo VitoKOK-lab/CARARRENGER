@@ -7,13 +7,40 @@
  *
  * 所有登入者共用同一份資料（等同原本 shared=true 的行為），
  * 這樣不同電腦、不同人看到的排班表才會是同一份、即時同步。
+ *
+ * 權限(伺服器端強制,不只靠前端隱藏):
+ *   讀取:任何登入者。
+ *   寫入/刪除:
+ *     - 班表類資料(schedule-month / schedule-draft / leave-request / staff-data-v3[調整人員順序])
+ *       需要至少有一個職務的編輯權限(或超級管理者),純檢視帳號不可寫。
+ *     - merged-view-sel:<帳號id> 只有本人可寫。
+ *     - 其餘(規則、行事曆、代碼、解決方案庫…)只有超級管理者可寫。
+ *   班表資料目前是「整份存成一個 key」,無法在伺服器端細分到單一職務;
+ *   所以編輯權限只能擋到「有沒有任何編輯權」這一層。
  */
 const express = require('express');
 const router = express.Router();
 const { KV } = require('../models');
 const { requireAuth } = require('../middleware');
 
+const KEY_PATTERN = /^[A-Za-z0-9:_.\-]{1,120}$/;
+const EDITOR_PREFIXES = ['schedule-month:', 'schedule-draft:', 'leave-request:'];
+const EDITOR_KEYS = ['staff-data-v3'];
+
+function canWrite(user, key) {
+  if (user.isSuperAdmin) return true;
+  if (key.startsWith('merged-view-sel:')) return key === 'merged-view-sel:' + user.id;
+  const isEditorKey = EDITOR_KEYS.includes(key) || EDITOR_PREFIXES.some((p) => key.startsWith(p));
+  if (!isEditorKey) return false;
+  return Array.isArray(user.editRoles) && user.editRoles.length > 0;
+}
+
 router.use(requireAuth);
+
+router.param('key', (req, res, next, key) => {
+  if (!KEY_PATTERN.test(key)) return res.status(400).json({ error: '儲存的名稱格式不正確' });
+  next();
+});
 
 router.get('/:key', (req, res) => {
   const value = KV.get(req.params.key);
@@ -21,6 +48,9 @@ router.get('/:key', (req, res) => {
 });
 
 router.put('/:key', (req, res) => {
+  if (!canWrite(req.user, req.params.key)) {
+    return res.status(403).json({ error: '您的帳號沒有修改這項資料的權限' });
+  }
   const { value } = req.body || {};
   // value 一律以字串儲存（前端傳進來的本來就是 JSON.stringify 過的字串）
   const toStore = value == null ? null : (typeof value === 'string' ? value : JSON.stringify(value));
@@ -29,6 +59,9 @@ router.put('/:key', (req, res) => {
 });
 
 router.delete('/:key', (req, res) => {
+  if (!canWrite(req.user, req.params.key)) {
+    return res.status(403).json({ error: '您的帳號沒有刪除這項資料的權限' });
+  }
   KV.delete(req.params.key);
   res.json({ ok: true });
 });

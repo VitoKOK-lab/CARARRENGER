@@ -2,7 +2,7 @@
 /**
  * Express 中介層：驗證 JWT、載入目前使用者、限制只有超級管理者能用的路由。
  */
-const { verifyToken, extractToken } = require('./auth');
+const { verifyToken, extractToken, passwordVersion } = require('./auth');
 const { Users, toPublicUser } = require('./models');
 
 // 需要登入才能使用。通過後 req.user 會是完整的使用者物件（含權限）。
@@ -13,6 +13,10 @@ function requireAuth(req, res, next) {
   if (!payload) return res.status(401).json({ error: '登入已過期，請重新登入' });
   const row = Users.findById(payload.sub);
   if (!row) return res.status(401).json({ error: '帳號已不存在' });
+  // 密碼被改過(含救援碼重設)後,舊 token 一律失效
+  if (payload.pv !== passwordVersion(row.password_hash)) {
+    return res.status(401).json({ error: '登入已失效,請重新登入' });
+  }
   req.user = toPublicUser(row);
   next();
 }

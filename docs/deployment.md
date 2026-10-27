@@ -94,6 +94,9 @@ server {
 | `JWT_SECRET` | （無） | **必填**（正式模式沒設會拒絕啟動）。登入 token 的簽章金鑰，要長且隨機 |
 | `JWT_EXPIRES_IN` | `30d` | 登入多久後需重新登入（如 `12h`、`7d`、`30d`） |
 | `DB_PATH` | `data/scheduling.db` | SQLite 資料庫檔位置 |
+| `SETUP_TOKEN` | （空） | 建議設定。建立第一個管理者時必須輸入的口令 |
+| `TRUST_PROXY` | （關閉） | 放在反向代理後面時設 `1`，登入限流才會依真實 IP 計算 |
+| `BCRYPT_ROUNDS` | `12` | 密碼雜湊強度（最小 4，測試用才調低） |
 | `NODE_ENV` | `development` | 設成 `production` 會強制要求 `JWT_SECRET` |
 
 ---

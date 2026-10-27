@@ -13,6 +13,7 @@ const express = require('express');
 const router = express.Router();
 const { Users } = require('../models');
 const { requireAuth, requireSuperAdmin } = require('../middleware');
+const { validatePassword } = require('../auth');
 
 router.use(requireAuth, requireSuperAdmin);
 
@@ -29,6 +30,8 @@ router.post('/', (req, res) => {
   const name = (username || '').trim();
   if (!name) return res.status(400).json({ error: '請輸入帳號' });
   if (!password) return res.status(400).json({ error: '請輸入密碼' });
+  const pwErr = validatePassword(String(password));
+  if (pwErr) return res.status(400).json({ error: pwErr });
   if (Users.findByUsername(name)) {
     return res.status(409).json({ error: '這個帳號名稱已經有人用了' });
   }
@@ -59,6 +62,10 @@ router.put('/:id', (req, res) => {
   const name = username != null ? String(username).trim() : null;
 
   if (name === '') return res.status(400).json({ error: '帳號不能空白' });
+  if (password) {
+    const pwErr = validatePassword(String(password));
+    if (pwErr) return res.status(400).json({ error: pwErr });
+  }
   if (name) {
     const clash = Users.findByUsername(name);
     if (clash && clash.id !== target.id) {

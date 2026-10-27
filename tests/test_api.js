@@ -17,6 +17,7 @@ process.env.DB_PATH = tmpDb;
 process.env.JWT_SECRET = 'test-secret';
 process.env.PORT = '0'; // 讓系統自動配一個空閒的埠
 process.env.NODE_ENV = 'test';
+process.env.BCRYPT_ROUNDS = '4'; // 測試用,加快雜湊速度
 
 const app = require('../server/index');
 
@@ -60,7 +61,7 @@ async function check(name, fn){
     assert.ok(r.data.token, '應回傳 token');
     assert.strictEqual(r.data.user.isSuperAdmin, true);
     adminToken = r.data.token;
-    assert.ok(/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(r.data.recoveryCode || ''), 'setup 應回傳 XXXX-XXXX-XXXX 格式的救援碼');
+    assert.ok(/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(r.data.recoveryCode || ''), 'setup 應回傳 XXXX-XXXX-XXXX-XXXX 格式的救援碼');
     adminRecoveryCode = r.data.recoveryCode;
   });
 
@@ -112,7 +113,7 @@ async function check(name, fn){
   });
 
   await check('帳號名稱重複應被拒(409)', async () => {
-    const r = await req('POST', '/api/users', { token: adminToken, body: { username: 'admin', password: 'zzz111' } });
+    const r = await req('POST', '/api/users', { token: adminToken, body: { username: 'admin', password: 'zzz11111' } });
     assert.strictEqual(r.status, 409);
   });
 
@@ -144,9 +145,9 @@ async function check(name, fn){
     assert.strictEqual(r.status, 401);
   });
 
-  await check('忘記密碼:不存在的帳號應回 404', async () => {
-    const r = await req('POST', '/api/auth/recover', { body: { username: '查無此人', recoveryCode: adminRecoveryCode, newPassword: 'x' } });
-    assert.strictEqual(r.status, 404);
+  await check('忘記密碼:不存在的帳號回應與救援碼錯誤相同(401,不洩漏帳號是否存在)', async () => {
+    const r = await req('POST', '/api/auth/recover', { body: { username: '查無此人', recoveryCode: adminRecoveryCode, newPassword: 'xxxxxxxx' } });
+    assert.strictEqual(r.status, 401);
   });
 
   await check('忘記密碼:正確救援碼可重設密碼(大小寫/空白不敏感)', async () => {
@@ -172,7 +173,7 @@ async function check(name, fn){
   await check('新增帳號會回傳一次性救援碼', async () => {
     const r = await req('POST', '/api/users', { token: adminToken, body: { username: 'nurse_r', password: 'pw123456', editRoles: [], viewRoles: [], isSuperAdmin: false } });
     assert.strictEqual(r.status, 201);
-    assert.ok(/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(r.data.recoveryCode || ''), '新增帳號應回傳救援碼');
+    assert.ok(/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(r.data.recoveryCode || ''), '新增帳號應回傳救援碼');
   });
 
   await check('超級管理者可重設某帳號的救援碼,新碼可用來重設密碼', async () => {
@@ -181,7 +182,7 @@ async function check(name, fn){
     const reset = await req('POST', '/api/users/' + nurse.id + '/reset-recovery', { token: adminToken });
     assert.strictEqual(reset.status, 200);
     const newCode = reset.data.recoveryCode;
-    assert.ok(/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(newCode || ''), '應回傳新救援碼');
+    assert.ok(/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(newCode || ''), '應回傳新救援碼');
     const rec = await req('POST', '/api/auth/recover', { body: { username: 'nurse_r', recoveryCode: newCode, newPassword: 'resetpw999' } });
     assert.strictEqual(rec.status, 200);
     const login = await req('POST', '/api/auth/login', { body: { username: 'nurse_r', password: 'resetpw999' } });
